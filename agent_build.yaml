@@ -213,7 +213,7 @@ Resources:
   LogBucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: !Sub '${EnvironmentName}-${AWS::AccountId}-log-bucket'
+      BucketName: !Sub '${EnvironmentName}-${AWS::AccountId}-${AWS::Region}-log-bucket'
   
   LogBucketPolicy:
     Type: AWS::S3::BucketPolicy
