@@ -1,0 +1,615 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'CloudFormation template for Streamlit app deployment on ECS Fargate with CodeBuild integration and extended permissions'
+
+Parameters:
+  Vpccidr:
+    Description: Please enter the IP range (CIDR notation) for the VPC
+    Type: String
+    Default: 10.0.0.0/16
+
+  PublicSubnetAcidr:
+    Description: Please enter the IP range (CIDR notation) for the public subnet in the first Availability Zone
+    Type: String
+    Default: 10.0.0.0/24
+
+  PublicSubnetBcidr:
+    Description: Please enter the IP range (CIDR notation) for the public subnet in the second Availability Zone
+    Type: String
+    Default: 10.0.1.0/24
+
+  GitRepoURL:
+    Type: String
+    Default: https://github.com/zeekgaws/biomarker-agent.git
+    Description: Git repository URL where the code files are stored
+
+  EnvironmentName:
+    Type: String
+    Description: The name of the agent environment, used to differentiate agent application. Must be lowercase, contain one number, and be no more than 5 characters long.
+    Default: env1
+    MaxLength: 5
+    AllowedPattern: ^[a-z]{1,4}[0-9]$
+    ConstraintDescription: Must be lowercase, contain one number at the end, and be no more than 5 characters
+
+  ImageTag:
+    Type: String
+    Default: latest
+    Description: Tag of the Docker image to deploy
+
+Resources:
+# VPC
+  LogsPolicy:
+    Type: "AWS::IAM::ManagedPolicy"
+    Properties:
+      Path: /
+      ManagedPolicyName: !Sub "LogsPolicy${EnvironmentName}"
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: 'Allow'
+            Action:
+              - 'logs:CreateLogGroup'
+              - 'logs:CreateLogStream'
+              - 'logs:PutLogEvents'
+              - 'logs:PutRetentionPolicy'
+            Resource: '*'
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref Vpccidr
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: 'VPC'
+  
+  VPCLogGroup:
+    DeletionPolicy: Retain
+    Type: 'AWS::Logs::LogGroup'
+    Properties:
+      RetentionInDays: 7
+      
+  VPCLogRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: vpc-flow-logs.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !GetAtt LogsPolicy.PolicyArn
+  
+  VPCFlowLog:
+    Type: "AWS::EC2::FlowLog"
+    Properties:
+      ResourceId: !Ref VPC
+      ResourceType: VPC
+      TrafficType: ALL
+      LogGroupName: !Ref VPCLogGroup
+      DeliverLogsPermissionArn: !GetAtt VPCLogRole.Arn
+  
+  # Internet Gateway
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: InternetGateway
+
+  InternetGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPC
+
+  # Create a Subnet
+  PublicSubnetA:  
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: !Ref PublicSubnetAcidr
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select 
+                          - 0
+                          - Fn::GetAZs: !Ref 'AWS::Region'
+      Tags:
+        - Key: Name
+          Value: PublicSubnetA
+
+  PublicSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: !Ref PublicSubnetBcidr
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select 
+                          - 1
+                          - Fn::GetAZs: !Ref 'AWS::Region'
+      Tags:
+        - Key: Name
+          Value: PublicSubnetB
+
+  # NAT Gateway
+  NatGatewayAEIP:
+    Type: AWS::EC2::EIP
+    DependsOn: InternetGatewayAttachment
+    Properties:
+      Domain: vpc
+
+  NatGatewayBEIP:
+    Type: AWS::EC2::EIP
+    DependsOn: InternetGatewayAttachment
+    Properties:
+      Domain: vpc
+
+  NatGatewayA:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt NatGatewayAEIP.AllocationId
+      SubnetId: !Ref PublicSubnetA
+
+  NatGatewayB:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt NatGatewayBEIP.AllocationId
+      SubnetId: !Ref PublicSubnetB
+  
+  # Public Route Table 
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: PublicRouteTable
+  
+  DefaultPublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: InternetGatewayAttachment
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  PublicSubnetARouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref PublicSubnetA
+
+  PublicSubnetBRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref PublicSubnetB
+
+  # ECS Cluster and related resources
+  ECSCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: StreamlitCluster
+
+  TaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: streamlit-task
+      Cpu: '256'
+      Memory: '512'
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      ExecutionRoleArn: !Ref ExecutionRole
+      TaskRoleArn: !Ref TaskRole
+      ContainerDefinitions:
+        - Name: streamlit-container
+          Image: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${StreamlitImageRepo}:${ImageTag}
+          PortMappings:
+            - ContainerPort: 80
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref CloudWatchLogsGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: streamlit
+
+  ExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy'
+        - 'arn:aws:iam::aws:policy/AmazonSSMFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonS3FullAccess'
+      Policies:
+        - PolicyName: BedrockFullAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: 'bedrock:*'
+                Resource: '*'
+
+  TaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/AmazonS3FullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonSSMFullAccess'
+      Policies:
+        - PolicyName: BedrockFullAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: 'bedrock:*'
+                Resource: '*'
+
+  CloudWatchLogsGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /ecs/streamlit-app-${AWS::StackName}
+      RetentionInDays: 14
+
+  ECSService:
+    Type: AWS::ECS::Service
+    DependsOn: ALBListener
+    Properties:
+      ServiceName: streamlit-service
+      Cluster: !Ref ECSCluster
+      TaskDefinition: !Ref TaskDefinition
+      DesiredCount: 1
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          Subnets: 
+            - !Ref PublicSubnetA
+            - !Ref PublicSubnetB
+          SecurityGroups:
+            - !Ref ContainerSecurityGroup
+      LoadBalancers:
+        - ContainerName: streamlit-container
+          ContainerPort: 80
+          TargetGroupArn: !Ref ALBTargetGroup
+
+  ContainerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for Streamlit container
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          SourceSecurityGroupId: !Ref ALBSecurityGroup
+
+  ALBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for ALB
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+
+  ALB:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Scheme: internet-facing
+      LoadBalancerAttributes:
+        - Key: idle_timeout.timeout_seconds
+          Value: '30'
+      Subnets:
+        - !Ref PublicSubnetA
+        - !Ref PublicSubnetB
+      SecurityGroups:
+        - !Ref ALBSecurityGroup
+
+  ALBListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref ALBTargetGroup
+      LoadBalancerArn: !Ref ALB
+      Port: 80
+      Protocol: HTTP
+
+  ALBTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      HealthCheckPath: /
+      Name: streamlit-tg
+      Port: 80
+      Protocol: HTTP
+      TargetType: ip
+      VpcId: !Ref VPC
+
+  # CodeBuild Project and related resources
+  StreamlitAppLogic:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: StreamlitFrontendProject
+      ServiceRole: !GetAtt StreamlitCodeBuildRole.Arn
+      Artifacts:
+        Type: NO_ARTIFACTS
+      LogsConfig:
+        CloudWatchLogs:
+          Status: ENABLED
+          GroupName: !Ref CodeBuildLogGroup
+      Environment:
+        Type: LINUX_CONTAINER
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/amazonlinux2-x86_64-standard:5.0
+        PrivilegedMode: true
+        EnvironmentVariables:
+          - Name: StreamlitImageRepo
+            Value: !Ref StreamlitImageRepo
+      Source:
+        Type: GITHUB
+        Location: !Ref GitRepoURL
+        BuildSpec: !Sub |
+          version: 0.2
+          phases:
+            pre_build:
+              commands:
+                - echo "Starting pre_build phase"
+                - echo "Logging into Amazon ECR..."
+                - pip3 install awscli 
+                - aws ecr get-login-password --region ${AWS::Region} | docker login --username AWS --password-stdin ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com
+                - echo "ECR login complete"
+            build:
+              commands:
+                - echo "Starting build phase"
+                - echo "Cloning Git repository..."
+                - git clone ${GitRepoURL}
+                - cd biomarker-agent/streamlitapp
+                - echo Build started on `date`
+                - echo "Renaming Dockerfile.txt to Dockerfile"
+                - mv Dockerfile.txt Dockerfile
+                - echo "Adding ENTRYPOINT to Dockerfile"
+                - printf 'ENTRYPOINT ["streamlit", "run", "app.py", "--server.port=80", "--", "--env", "${EnvironmentName}"]' >> Dockerfile
+                - echo "Contents of Dockerfile:"
+                - cat Dockerfile
+                - echo "Building Docker image..."
+                - docker build -t ${StreamlitImageRepo} .
+                - echo "Tagging Docker image..."
+                - docker tag ${StreamlitImageRepo}:latest ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${StreamlitImageRepo}:${ImageTag}
+                - echo "Docker image tagged"
+            post_build:
+              commands:
+                - echo "Starting post_build phase"
+                - echo "Pushing Docker image to ECR..."
+                - docker push ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${StreamlitImageRepo}:${ImageTag}
+                - echo "Docker image pushed to ECR"
+      TimeoutInMinutes: 10
+
+  CodeBuildLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/codebuild/${AWS::StackName}-StreamlitAppLogic'
+      RetentionInDays: 14
+
+  StreamlitCodeBuildRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: codebuild.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryPowerUser'
+        - 'arn:aws:iam::aws:policy/CloudWatchLogsFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonS3FullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonSSMFullAccess'
+      Policies:
+        - PolicyName: StreamlitCodeBuildBasePolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Resource: '*'
+                Action:
+                  - 'logs:CreateLogGroup'
+                  - 'logs:CreateLogStream'
+                  - 'logs:PutLogEvents'
+              - Effect: Allow
+                Resource: 
+                  - !Sub 'arn:aws:s3:::${AWS::AccountId}-codepipeline-${AWS::Region}'
+                  - !Sub 'arn:aws:s3:::${AWS::AccountId}-codepipeline-${AWS::Region}/*'
+                Action:
+                  - 's3:GetObject'
+                  - 's3:GetObjectVersion'
+                  - 's3:GetBucketVersioning'
+                  - 's3:PutObject'
+              - Effect: Allow
+                Resource: '*'
+                Action:
+                  - 'ecr:GetAuthorizationToken'
+        - PolicyName: StreamlitECRAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ecr:GetAuthorizationToken
+                  - ecr:BatchCheckLayerAvailability
+                  - ecr:GetDownloadUrlForLayer
+                  - ecr:GetRepositoryPolicy
+                  - ecr:DescribeRepositories
+                  - ecr:ListImages
+                  - ecr:DescribeImages
+                  - ecr:BatchGetImage
+                  - ecr:InitiateLayerUpload
+                  - ecr:UploadLayerPart
+                  - ecr:CompleteLayerUpload
+                  - ecr:PutImage
+                Resource: '*'
+        - PolicyName: StreamlitBedrockFullAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: 'bedrock:*'
+                Resource: '*'
+
+  StreamlitImageRepo:
+    Type: AWS::ECR::Repository
+    Properties:
+      EmptyOnDelete: true
+  EnsureECRImagePushed:
+    Type: Custom::EnsureECRImagePushed
+    DependsOn: 
+      - TriggerBuildCustomResource
+    Properties:
+      ServiceToken: !GetAtt TriggerBuildLambda.Arn
+      ECRRepository: !Ref StreamlitImageRepo
+      ImageTag: !Ref ImageTag
+  TriggerBuildLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      Handler: index.handler
+      Role: !GetAtt TriggerBuildLambdaRole.Arn
+      Code:
+        ZipFile: |
+          import boto3
+          import cfnresponse
+          import time
+
+          def handler(event, context):
+              if event['RequestType'] in ['Create', 'Update']:
+                  try:
+                      codebuild = boto3.client('codebuild')
+                      ecr = boto3.client('ecr')
+                      
+                      if 'ProjectName' in event['ResourceProperties']:
+                          # This is for TriggerBuildCustomResource
+                          project_name = event['ResourceProperties']['ProjectName']
+                          response = codebuild.start_build(projectName=project_name)
+                          build_id = response['build']['id']
+                          print(f"Build started: {build_id}")
+                          
+                          # Wait for build to complete
+                          while True:
+                              build_status = codebuild.batch_get_builds(ids=[build_id])['builds'][0]['buildStatus']
+                              if build_status == 'SUCCEEDED':
+                                  print("Build completed successfully")
+                                  break
+                              elif build_status in ['FAILED', 'STOPPED', 'TIMED_OUT']:
+                                  print(f"Build failed with status: {build_status}")
+                                  cfnresponse.send(event, context, cfnresponse.FAILED, {"Error": f"Build failed with status: {build_status}"})
+                                  return
+                              time.sleep(10)  # Wait for 10 seconds before checking again
+                          
+                          cfnresponse.send(event, context, cfnresponse.SUCCESS, {"BuildId": build_id})
+                          
+                      elif 'ECRRepository' in event['ResourceProperties']:
+                          # This is for EnsureECRImagePushed
+                          repository_name = event['ResourceProperties']['ECRRepository']
+                          image_tag = event['ResourceProperties']['ImageTag']
+                          
+                          # Wait for image to be available in ECR
+                          max_attempts = 30  # Maximum number of attempts
+                          for attempt in range(max_attempts):
+                              try:
+                                  ecr.describe_images(repositoryName=repository_name, imageIds=[{'imageTag': image_tag}])
+                                  print(f"Image {repository_name}:{image_tag} exists in ECR")
+                                  cfnresponse.send(event, context, cfnresponse.SUCCESS, {})
+                                  return
+                              except ecr.exceptions.ImageNotFoundException:
+                                  if attempt == max_attempts - 1:
+                                      print(f"Image {repository_name}:{image_tag} not found in ECR after {max_attempts} attempts")
+                                      cfnresponse.send(event, context, cfnresponse.FAILED, {"Error": "Image not found in ECR after maximum attempts"})
+                                      return
+                                  time.sleep(10)  # Wait for 10 seconds before trying again
+                      else:
+                          cfnresponse.send(event, context, cfnresponse.FAILED, {"Error": "Invalid ResourceProperties"})
+                  except Exception as e:
+                      print(f"Error: {str(e)}")
+                      cfnresponse.send(event, context, cfnresponse.FAILED, {"Error": str(e)})
+              else:
+                  cfnresponse.send(event, context, cfnresponse.SUCCESS, {})
+      Runtime: python3.8
+      Timeout: 900
+
+  TriggerBuildLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: CodeBuildStartBuildPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: 
+                  - codebuild:StartBuild
+                  - codebuild:BatchGetBuilds
+                Resource: 
+                  - !GetAtt StreamlitAppLogic.Arn
+        - PolicyName: CloudWatchLogsPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: arn:aws:logs:*:*:*
+        - PolicyName: ECRDescribeImagesPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: ecr:DescribeImages
+                Resource: '*'
+        - PolicyName: PassRoleToCodeBuild
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - iam:PassRole
+                Resource: !GetAtt StreamlitCodeBuildRole.Arn
+  TriggerBuildCustomResource:
+    Type: Custom::TriggerBuild
+    DependsOn: StreamlitAppLogic
+    Properties:
+      ServiceToken: !GetAtt TriggerBuildLambda.Arn
+      ProjectName: !Ref StreamlitAppLogic
+
+Outputs:
+  StreamlitAppURL:
+    Description: URL of the Streamlit application
+    Value: !Sub http://${ALB.DNSName}
+  CodeBuildProjectName:
+    Description: Name of the CodeBuild project
+    Value: !Ref StreamlitAppLogic
+  ECRRepositoryURI:
+    Description: URI of the ECR repository
+    Value: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${StreamlitImageRepo}
