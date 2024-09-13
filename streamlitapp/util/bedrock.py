@@ -191,7 +191,7 @@ class BedrockAgent:
         latestversion = str(agentversions[-1][0])
             
         actionlist = client.list_agent_action_groups(
-            agentId='YIXM0FEJMW',
+            agentId=self.agent_id,
             agentVersion=latestversion,
             maxResults=123
 
