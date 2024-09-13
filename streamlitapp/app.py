@@ -179,4 +179,4 @@ if st.button("Clear Chat"):
     st.session_state["chat_history"] = []
     bedrock.new_session()
     bedrock.cleanup_temp_files()
-    st.experimental_rerun()
+    st.rerun()
