@@ -19,7 +19,7 @@ Parameters:
 
   GitRepoURL:
     Type: String
-    Default: https://github.com/zeekgaws/biomarker-agent.git
+    Default: 'https://github.com/aws-samples/amazon-bedrock-agents-cancer-biomarker-discovery.git'
     Description: Git repository URL where the code files are stored
 
   EnvironmentName:
@@ -377,8 +377,8 @@ Resources:
               commands:
                 - echo "Starting build phase"
                 - echo "Cloning Git repository..."
-                - git clone ${GitRepoURL}
-                - cd biomarker-agent/streamlitapp
+                - git clone ${GitRepoURL} repo
+                - cd repo/streamlitapp
                 - echo Build started on `date`
                 - echo "Renaming Dockerfile.txt to Dockerfile"
                 - mv Dockerfile.txt Dockerfile
