@@ -109,9 +109,9 @@ class BedrockAgent:
                             trace_text += f'\n\n\n---------- Step {step} ----------\n\n\n{trace_obj["orchestrationTrace"]["rationale"]["text"]}\n\n\n'
                             trace.markdown(f'\n\n\n---------- Step {step} ----------\n\n\n{trace_obj["orchestrationTrace"]["rationale"]["text"]}\n\n\n')
 
-                        elif "modelInvocationInput" not in trace_obj["orchestrationTrace"]:
-                            trace_text += "\n\n\n" + trace_dump + "\n\n\n"
-                            trace.markdown("\n\n\n" + trace_dump + "\n\n\n")
+                        # elif "modelInvocationInput" not in trace_obj["orchestrationTrace"]:
+                        #     trace_text += "\n\n\n" + trace_dump + "\n\n\n"
+                        #     trace.markdown("\n\n\n" + trace_dump + "\n\n\n")
 
                     elif "failureTrace" in trace_obj:
                         trace_text += "\n\n\n" + json.dumps(trace_obj["failureTrace"], indent=2) + "\n\n\n"
