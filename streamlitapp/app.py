@@ -81,25 +81,7 @@ st.title("Biomarker Research Agent")
 
 col1, col2 = st.columns([6, 1])
 with col2:
-    st.link_button("Github 😎", "https://quip-amazon.com/d7avAHNyd5yu/Accelerate-analysis-and-discovery-of-cancer-biomarkers-with-Agents-for-Bedrock")
-
-# Image display area
-st.markdown("---")
-image_placeholder = st.empty()
-
-if selected_file and load_image:
-    image = bedrock.get_image_from_s3(selected_file)
-    image_placeholder.image(image, caption=selected_file, use_column_width=True)
-elif fetch_image:
-    s3_image = bedrock.get_s3_image(invocation_id)
-    if s3_image:
-        image_placeholder.image(s3_image['path'], caption=s3_image['name'], use_column_width=True)
-    else:
-        image_placeholder.error("Failed to fetch image from S3.")
-
-# Chat interface
-st.markdown("---")
-st.subheader("Chat Interface")
+    st.link_button("Github 😎", "https://github.com/aws-samples/amazon-bedrock-agents-cancer-biomarker-discovery")
 
 if "chat_history" not in st.session_state or len(st.session_state["chat_history"]) == 0:
     st.session_state["chat_history"] = [
@@ -135,6 +117,19 @@ for index, chat in enumerate(st.session_state["chat_history"]):
             st.markdown(chat["prompt"])
 if 'selected_actions' in st.session_state:
     st.write("Currently selected actions:", ', '.join(st.session_state.selected_actions))
+
+image_placeholder = st.empty()
+
+
+if selected_file and load_image:
+    image = bedrock.get_image_from_s3(selected_file)
+    image_placeholder.image(image, caption=selected_file, use_column_width=True)
+elif fetch_image:
+    s3_image = bedrock.get_s3_image(invocation_id)
+    if s3_image:
+        image_placeholder.image(s3_image['path'], caption=s3_image['name'], use_column_width=True)
+    else:
+        image_placeholder.error("Failed to fetch image from S3.")
 
 
 # Input area
