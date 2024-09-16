@@ -469,13 +469,13 @@ Resources:
             sql = f"""
               CREATE TABLE IF NOT EXISTS "dev"."public"."chemotherapy_survival" (
               LRIG1 FLOAT,
-              Survival_Status INTEGER,
+              Survival_Status BOOLEAN,
               Survival_Duration FLOAT,
               ExpressionGroup FLOAT
           );
 
               COMMENT ON COLUMN "dev"."public"."chemotherapy_survival".LRIG1 IS 'Gene expression value for LRIG1';
-              COMMENT ON COLUMN "dev"."public"."chemotherapy_survival".Survival_Status IS 'Integer 1 or 0 for Alive or Dead';
+              COMMENT ON COLUMN "dev"."public"."chemotherapy_survival".Survival_Status IS 'BOOLEAN 0 for Alive or 1 for Dead';
               COMMENT ON COLUMN "dev"."public"."chemotherapy_survival".Survival_Duration IS 'Survival duration in days';
               COMMENT ON COLUMN "dev"."public"."chemotherapy_survival".ExpressionGroup IS 'Integer 1 or 0 for expression group';
             """
@@ -542,7 +542,7 @@ Resources:
               Radiation VARCHAR(20),
               Recurrence VARCHAR(20),
               Recurrence_Location VARCHAR(50),
-              Survival_Status INTEGER,
+              Survival_Status BOOLEAN,
               Time_to_Death FLOAT,
               Days_between_CT_and_surgery INT,
               Survival_Duration FLOAT
@@ -602,7 +602,7 @@ Resources:
               COMMENT ON COLUMN "dev"."public"."clinical_genomic".Radiation IS 'Yes or No';
               COMMENT ON COLUMN "dev"."public"."clinical_genomic".Recurrence IS 'Yes or No';
               COMMENT ON COLUMN "dev"."public"."clinical_genomic".Recurrence_Location IS 'Local, Distant, or N/A';
-              COMMENT ON COLUMN "dev"."public"."clinical_genomic".Survival_Status IS 'Integer 0 represents Alive and 1 represent Dead';
+              COMMENT ON COLUMN "dev"."public"."clinical_genomic".Survival_Status IS 'BOOLEAN 0 represents Alive and 1 represent Dead';
               COMMENT ON COLUMN "dev"."public"."clinical_genomic".Time_to_Death IS 'Time to death in days, or 0 if alive';
               COMMENT ON COLUMN "dev"."public"."clinical_genomic".Days_between_CT_and_surgery IS 'Number of days between CT scan and surgery';
               COMMENT ON COLUMN "dev"."public"."clinical_genomic".Survival_Duration IS 'duration of paitent survial';

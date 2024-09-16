@@ -13,31 +13,62 @@ def refineSQL(sql, question):
     schema = extract_table_columns(raw_schema)
     
     prompt = f"""
-    Here is the schema <schema>{json.dumps(schema)}</schema>
-    Pay attention to the accepted values and the column data type located in the comment field for each column.
+    You are an extremely critical SQL query evaluation assistant. Your job is to analyze
+    the given schema, SQL query, and question to ensure the query is efficient and accurately answers the 
+    question. You should focus on making the query as efficient as possible, using aggregation when applicable.
 
-    Here is the generated sql query
-    <sql>{sql}</sql>
+    Here is the schema you should consider:
+    <schema>
+    {json.dumps(schema)}
+    </schema>
+    
+    Pay close attention to the accepted values and the column data type located in the comment field for each column.
+    
+    Here is the generated SQL query to evaluate:
+    <sql_query>
+    {sql}
+    </sql_query>
+    
+    Here is the question that was asked:
+    <question>
+    {question}
+    </question>
+    
+    Your task is to evaluate and refine the SQL query to ensure it is very efficient. Follow these steps:
+    1. Analyze the query in relation to the schema and the question.
+    2. Determine if the query efficiently answers the question.
+    3. If the query is not efficient, provide a more efficient SQL query.
+    4. If the query is already efficient, respond with "no change needed".
 
-    Here is the question that was asked 
-    <question>{question}</question>
+    When evaluating efficiency, consider the following:
+    - Use of appropriate aggregation functions (COUNT, SUM, AVG, etc.)
+    - Proper use of GROUP BY clauses
+    - Avoiding unnecessary JOINs or subqueries
+    - Selecting only necessary columns
+    - Using appropriate WHERE clauses to filter data
     
-    <Instruction>Evaluate and refine the SQL query to make sure it is very efficient. If it is not efficient then respond back with a more efficient sql query, or respond with "no change needed" if the query is good. your response should with <efficientQuery></efficientQuery> tags </Instruction>
-    <example>
-    question: What is the survival status for patients who has undergone chemotherapy
+    Here are examples to guide your evaluation:
     
-    Inefficient SQL Query:
+    Inefficient query example:
     SELECT chemotherapy, survival_status FROM dev.public.lung_cancer_cases WHERE chemotherapy = 'Yes';
-    
-    Reason: This is inefficient because it does not provide a more concise and informative output that directly answers the question. It results in a larger output size, does not aggregate the data, and presents the results in a difficult format that is not easy to analyze and interpret.
-    
-    Efficient SQL Query:
+
+    This is inefficient because it does not provide a concise and informative output that directly answers
+    the question. It results in a larger output size, does not aggregate the data, and presents the results
+    in a format that is not easy to analyze and interpret.
+
+    Efficient query example:
     SELECT survival_status, COUNT(*) AS count FROM dev.public.lung_cancer_cases WHERE chemotherapy = 'Yes' GROUP BY survival_status;
+
+    This query uses COUNT(*) and GROUP BY to aggregate and count the records for each distinct value of survival_status, providing a more concise and informative result.
     
-    Reason: This query will give you the count of patients for each survival status (Alive or Dead) who have undergone chemotherapy. It uses COUNT(*) and GROUP BY to aggregate and count the records for each distinct value of survival_status, providing a more concise and informative result.
+    Another efficient query example:
+    SELECT smoking_status, COUNT(DISTINCT case_id) AS num_patients FROM clinical_genomic WHERE age_at_histological_diagnosis > 50 GROUP BY smoking_status;
     
-    </example>
-    <outputrule>do not use next line characters in the generated sql</outputrule>
+    This query uses COUNT(DISTINCT) and GROUP BY to aggregate and provide a summary of the data, reducing the SQL output size.
+    
+    Provide your response within <efficientQuery> tags. If you suggest a new query, do not use line breaks in the generated SQL. Your response should be a single line of SQL or "no change needed" if the original query is already efficient.
+    
+    Remember to prioritize aggregation when possible to reduce SQL output size and provide more meaningful results.
     """
     client = boto3.client('bedrock-runtime')
     user_message = {"role": "user", "content": prompt}
