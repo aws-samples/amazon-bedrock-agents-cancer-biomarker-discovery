@@ -118,16 +118,24 @@ for index, chat in enumerate(st.session_state["chat_history"]):
 if 'selected_actions' in st.session_state:
     st.write("Currently selected actions:", ', '.join(st.session_state.selected_actions))
 
+
 image_placeholder = st.empty()
 
 
 if selected_file and load_image:
-    image = bedrock.get_image_from_s3(selected_file)
-    image_placeholder.image(image, caption=selected_file, use_column_width=True)
+    try:
+        image = bedrock.get_image_from_s3(selected_file)
+        image_placeholder.image(image, caption=selected_file, use_column_width=True)
+    except Exception as e:
+        st.error(f"Unable loading image: {str(e)}")
+
 elif fetch_image:
     s3_image = bedrock.get_s3_image(invocation_id)
     if s3_image:
-        image_placeholder.image(s3_image['path'], caption=s3_image['name'], use_column_width=True)
+        try:
+            image_placeholder.image(s3_image['path'], caption=s3_image['name'], use_column_width=True)
+        except Exception as e:
+            st.error(f"Unable loading image: {str(e)}")
     else:
         image_placeholder.error("Failed to fetch image from S3.")
 
