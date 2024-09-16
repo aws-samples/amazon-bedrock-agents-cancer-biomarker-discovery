@@ -90,7 +90,7 @@ Access to Amazon Bedrock foundation models (not granted by default). To gain acc
      - `GithubLink`: Default repository for the Agent (do not change)
      - `ImageTag`: Tag of the Docker image for Streamlit UI deployment
 
-[!NOTE] Full deployment takes approximately 10-15 minutes. Stack can also be launched in us-east-1 or us-west-2 by clicking launch stack below
+[!NOTE]Full deployment takes approximately 10-15 minutes. Stack can also be launched in us-east-1 or us-west-2 by clicking launch stack below
 
 |   Region   | codepipeline.yaml |
 | ---------- | ----------------- |
