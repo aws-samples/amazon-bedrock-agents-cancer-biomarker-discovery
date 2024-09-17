@@ -68,9 +68,9 @@ Here is an example chain of thought sequence with the agent. 11 questions are li
 
 ## Deployment
 
-Access to Amazon Bedrock foundation models (not granted by default). To gain access, follow the [official documentation](https://docs.aws.amazon.com/bedrock/latest/userguide/model-access.html).
+> [!IMPORTANT]  
+> Access to Amazon Bedrock foundation models (not granted by default). To gain access, follow the [official documentation](https://docs.aws.amazon.com/bedrock/latest/userguide/model-access.html).
 
-## Setup Process
 
 1. Upload the `Infra_cfn.yaml` file from the [amazon-bedrock-agents-cancer-biomarker-discovery](https://github.com/aws-samples/amazon-bedrock-agents-cancer-biomarker-discovery) repository to AWS CloudFormation. This template will set up:
    - Networking infrastructure (VPC, Subnets, etc.)
@@ -90,7 +90,8 @@ Access to Amazon Bedrock foundation models (not granted by default). To gain acc
      - `GithubLink`: Default repository for the Agent (do not change)
      - `ImageTag`: Tag of the Docker image for Streamlit UI deployment
 
-**Note:** Full deployment takes approximately 10-15 minutes. Stack can also be launched in us-east-1 or us-west-2 by clicking launch stack below
+> [!NOTE]  
+> Full deployment takes approximately 10-15 minutes. Stack can also be launched in us-east-1 or us-west-2 by clicking launch stack below
 
 |   Region   | codepipeline.yaml |
 | ---------- | ----------------- |
