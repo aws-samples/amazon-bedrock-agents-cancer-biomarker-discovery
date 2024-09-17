@@ -1498,188 +1498,187 @@ Resources:
       Value: !Ref S3Bucket
       Description: !Sub SSM parameter for S3 bucket name for ${EnvironmentName}
 
-
   
-  enableCodeInterpreter:
-    Type: Custom::enableCodeInterpreter
-    DependsOn: 
-      - AgentAliasResource
-      - AgentAliasIdSSMParameter
-    Properties:
-      ServiceToken: !GetAtt CodeInterpreterLambda.Arn
-      agentId: !GetAtt AgentResource.AgentId
-      agentVersion: !GetAtt AgentResource.AgentVersion
+  # enableCodeInterpreter:
+  #   Type: Custom::enableCodeInterpreter
+  #   DependsOn: 
+  #     - AgentAliasResource
+  #     - AgentAliasIdSSMParameter
+  #   Properties:
+  #     ServiceToken: !GetAtt CodeInterpreterLambda.Arn
+  #     agentId: !GetAtt AgentResource.AgentId
+  #     agentVersion: !GetAtt AgentResource.AgentVersion
 
-  CodeInterpreterLambda:
-    Type: AWS::Lambda::Function
-    Properties:
-      Handler: index.handler
-      Role: !GetAtt CodeInterpreterLambdaRole.Arn
-      Code:
-        ZipFile: |
-          import boto3
-          import cfnresponse
-          import os
-          import time
+  # CodeInterpreterLambda:
+  #   Type: AWS::Lambda::Function
+  #   Properties:
+  #     Handler: index.handler
+  #     Role: !GetAtt CodeInterpreterLambdaRole.Arn
+  #     Code:
+  #       ZipFile: |
+  #         import boto3
+  #         import cfnresponse
+  #         import os
+  #         import time
 
-          def create_ssm_parameter(environment_name, agent_alias_id):
-              ssm_client = boto3.client('ssm')
-              parameter_name = f"/streamlitapp/{environment_name}/AGENT_ALIAS_ID"
-              parameter_value = agent_alias_id
-              parameter_type = "String"
-              parameter_description = f"SSM parameter for AgentAliasId for {environment_name}"
+  #         def create_ssm_parameter(environment_name, agent_alias_id):
+  #             ssm_client = boto3.client('ssm')
+  #             parameter_name = f"/streamlitapp/{environment_name}/AGENT_ALIAS_ID"
+  #             parameter_value = agent_alias_id
+  #             parameter_type = "String"
+  #             parameter_description = f"SSM parameter for AgentAliasId for {environment_name}"
 
-              try:
-                  ssm_client.put_parameter(
-                      Name=parameter_name,
-                      Value=parameter_value,
-                      Type=parameter_type,
-                      Description=parameter_description,
-                      Overwrite=True
-                  )
-                  print(f"SSM Parameter '{parameter_name}' created/updated successfully.")
-              except Exception as e:
-                  print(f"Error creating/updating SSM Parameter: {str(e)}")
-                  raise
+  #             try:
+  #                 ssm_client.put_parameter(
+  #                     Name=parameter_name,
+  #                     Value=parameter_value,
+  #                     Type=parameter_type,
+  #                     Description=parameter_description,
+  #                     Overwrite=True
+  #                 )
+  #                 print(f"SSM Parameter '{parameter_name}' created/updated successfully.")
+  #             except Exception as e:
+  #                 print(f"Error creating/updating SSM Parameter: {str(e)}")
+  #                 raise
 
-          def get_ssm_parameter(environment_name):
-              ssm_client = boto3.client('ssm')
-              parameter_name = f"/streamlitapp/{environment_name}/AGENT_ALIAS_ID"
+  #         def get_ssm_parameter(environment_name):
+  #             ssm_client = boto3.client('ssm')
+  #             parameter_name = f"/streamlitapp/{environment_name}/AGENT_ALIAS_ID"
               
-              try:
-                  response = ssm_client.get_parameter(Name=parameter_name)
-                  return response['Parameter']['Value']
-              except ssm_client.exceptions.ParameterNotFound:
-                  print(f"SSM Parameter '{parameter_name}' not found.")
-                  return None
-              except Exception as e:
-                  print(f"Error retrieving SSM Parameter: {str(e)}")
-                  raise
+  #             try:
+  #                 response = ssm_client.get_parameter(Name=parameter_name)
+  #                 return response['Parameter']['Value']
+  #             except ssm_client.exceptions.ParameterNotFound:
+  #                 print(f"SSM Parameter '{parameter_name}' not found.")
+  #                 return None
+  #             except Exception as e:
+  #                 print(f"Error retrieving SSM Parameter: {str(e)}")
+  #                 raise
 
-          def prepare_agent(client, agent_id):
-              MAX_ATTEMPTS = 30
-              DELAY_SECONDS = 10
-              agentPrep = client.prepare_agent(agentId=agent_id)
+  #         def prepare_agent(client, agent_id):
+  #             MAX_ATTEMPTS = 30
+  #             DELAY_SECONDS = 10
+  #             agentPrep = client.prepare_agent(agentId=agent_id)
 
-              for attempt in range(MAX_ATTEMPTS):
-                  print(f"Agent status is: {agentPrep['agentStatus']} (Attempt {attempt + 1}/{MAX_ATTEMPTS})")
-                  response = client.get_agent(agentId=agent_id)
-                  agentStatus=response['agent']['agentStatus']
+  #             for attempt in range(MAX_ATTEMPTS):
+  #                 print(f"Agent status is: {agentPrep['agentStatus']} (Attempt {attempt + 1}/{MAX_ATTEMPTS})")
+  #                 response = client.get_agent(agentId=agent_id)
+  #                 agentStatus=response['agent']['agentStatus']
                   
-                  if agentStatus == 'PREPARED':
-                      return True
-                  elif agentStatus == 'FAILED':
-                      return False
+  #                 if agentStatus == 'PREPARED':
+  #                     return True
+  #                 elif agentStatus == 'FAILED':
+  #                     return False
                   
-                  if attempt < MAX_ATTEMPTS - 1:
-                      time.sleep(DELAY_SECONDS)
+  #                 if attempt < MAX_ATTEMPTS - 1:
+  #                     time.sleep(DELAY_SECONDS)
 
-              return False
+  #             return False
 
-          def handler(event, context):
-              client = boto3.client('bedrock-agent')
-              environment_name = os.environ['ENVIRONMENT_NAME']
+  #         def handler(event, context):
+  #             client = boto3.client('bedrock-agent')
+  #             environment_name = os.environ['ENVIRONMENT_NAME']
               
-              try:
-                  if event['RequestType'] in ['Create', 'Update']:
-                      response = client.create_agent_action_group(
-                          actionGroupName='CodeInterpreterAction',
-                          actionGroupState='ENABLED',
-                          agentId=os.environ['agentId'],
-                          agentVersion=os.environ['agentVersion'],
-                          parentActionGroupSignature='AMAZON.CodeInterpreter'
-                      )
-                      agent_id = os.environ['agentId']
+  #             try:
+  #                 if event['RequestType'] in ['Create', 'Update']:
+  #                     response = client.create_agent_action_group(
+  #                         actionGroupName='CodeInterpreterAction',
+  #                         actionGroupState='ENABLED',
+  #                         agentId=os.environ['agentId'],
+  #                         agentVersion=os.environ['agentVersion'],
+  #                         parentActionGroupSignature='AMAZON.CodeInterpreter'
+  #                     )
+  #                     agent_id = os.environ['agentId']
                       
-                      if not prepare_agent(client, agent_id):
-                          raise Exception("Agent failed to prepare or preparation timed out")
+  #                     if not prepare_agent(client, agent_id):
+  #                         raise Exception("Agent failed to prepare or preparation timed out")
 
-                      agentAlias = client.create_agent_alias(agentAliasName='v2', agentId=agent_id)
-                      agent_alias_id = agentAlias['agentAlias']['agentAliasId']
+  #                     agentAlias = client.create_agent_alias(agentAliasName='v2', agentId=agent_id)
+  #                     agent_alias_id = agentAlias['agentAlias']['agentAliasId']
                   
-                      # Create SSM parameter
-                      create_ssm_parameter(environment_name, agent_alias_id)
+  #                     # Create SSM parameter
+  #                     create_ssm_parameter(environment_name, agent_alias_id)
                       
-                      cfnresponse.send(event, context, cfnresponse.SUCCESS, {"Message": "Action group and SSM parameter created successfully"})
-                  elif event['RequestType'] == 'Delete':
-                      # Retrieve the agent alias ID from SSM
-                      agent_alias_id = get_ssm_parameter(environment_name)
+  #                     cfnresponse.send(event, context, cfnresponse.SUCCESS, {"Message": "Action group and SSM parameter created successfully"})
+  #                 elif event['RequestType'] == 'Delete':
+  #                     # Retrieve the agent alias ID from SSM
+  #                     agent_alias_id = get_ssm_parameter(environment_name)
                       
-                      if agent_alias_id:
-                          # Delete the agent alias
-                          response = client.delete_agent_alias(agentAliasId=agent_alias_id, agentId=os.environ['agentId'])
-                          print(f"Agent alias {agent_alias_id} deleted successfully.")
+  #                     if agent_alias_id:
+  #                         # Delete the agent alias
+  #                         response = client.delete_agent_alias(agentAliasId=agent_alias_id, agentId=os.environ['agentId'])
+  #                         print(f"Agent alias {agent_alias_id} deleted successfully.")
                           
-                          cfnresponse.send(event, context, cfnresponse.SUCCESS, {"Message": "Agent alias and SSM parameter deleted successfully"})
-                      else:
-                          cfnresponse.send(event, context, cfnresponse.SUCCESS, {"Message": "No agent alias found to delete"})
-                  else:
-                      cfnresponse.send(event, context, cfnresponse.FAILED, {"Error": "Unsupported request type"})
-              except Exception as e:
-                  print(f"Error: {str(e)}")
-                  cfnresponse.send(event, context, cfnresponse.FAILED, {"Error": str(e)})
+  #                         cfnresponse.send(event, context, cfnresponse.SUCCESS, {"Message": "Agent alias and SSM parameter deleted successfully"})
+  #                     else:
+  #                         cfnresponse.send(event, context, cfnresponse.SUCCESS, {"Message": "No agent alias found to delete"})
+  #                 else:
+  #                     cfnresponse.send(event, context, cfnresponse.FAILED, {"Error": "Unsupported request type"})
+  #             except Exception as e:
+  #                 print(f"Error: {str(e)}")
+  #                 cfnresponse.send(event, context, cfnresponse.FAILED, {"Error": str(e)})
 
-      Runtime: python3.12
-      Timeout: 300
-      Environment:
-        Variables:
-          agentId: !GetAtt AgentResource.AgentId
-          agentVersion: !GetAtt AgentResource.AgentVersion
-          ENVIRONMENT_NAME: !Ref EnvironmentName
+  #     Runtime: python3.12
+  #     Timeout: 300
+  #     Environment:
+  #       Variables:
+  #         agentId: !GetAtt AgentResource.AgentId
+  #         agentVersion: !GetAtt AgentResource.AgentVersion
+  #         ENVIRONMENT_NAME: !Ref EnvironmentName
 
-  CodeInterpreterLambdaRole:
-    Type: AWS::IAM::Role
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service:
-                - lambda.amazonaws.com
-            Action:
-              - sts:AssumeRole
-      Policies:
-        - PolicyName: CloudWatchLogsPolicy
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - logs:CreateLogGroup
-                  - logs:CreateLogStream
-                  - logs:PutLogEvents
-                Resource: !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/*
-        - PolicyName: BedrockAgentPolicy
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - bedrock:CreateAgentActionGroup
-                  - bedrock:PrepareAgent
-                  - bedrock:CreateAgentAlias
-                  - bedrock:DeleteAgentAlias
-                  - bedrock:GetAgent
-                Resource: !Sub arn:aws:bedrock:${AWS::Region}:${AWS::AccountId}:agent/${AgentResource}
-        - PolicyName: BedrockAgentAliasPolicy
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - bedrock:CreateAgentAlias
-                  - bedrock:DeleteAgentAlias
-                Resource: !Sub arn:aws:bedrock:${AWS::Region}:${AWS::AccountId}:agent-alias/*
-        - PolicyName: SSMParameterPolicy
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - ssm:GetParameter
-                  - ssm:PutParameter
-                Resource: !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/streamlitapp/*
+  # CodeInterpreterLambdaRole:
+  #   Type: AWS::IAM::Role
+  #   Properties:
+  #     AssumeRolePolicyDocument:
+  #       Version: '2012-10-17'
+  #       Statement:
+  #         - Effect: Allow
+  #           Principal:
+  #             Service:
+  #               - lambda.amazonaws.com
+  #           Action:
+  #             - sts:AssumeRole
+  #     Policies:
+  #       - PolicyName: CloudWatchLogsPolicy
+  #         PolicyDocument:
+  #           Version: '2012-10-17'
+  #           Statement:
+  #             - Effect: Allow
+  #               Action:
+  #                 - logs:CreateLogGroup
+  #                 - logs:CreateLogStream
+  #                 - logs:PutLogEvents
+  #               Resource: !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/*
+  #       - PolicyName: BedrockAgentPolicy
+  #         PolicyDocument:
+  #           Version: '2012-10-17'
+  #           Statement:
+  #             - Effect: Allow
+  #               Action:
+  #                 - bedrock:CreateAgentActionGroup
+  #                 - bedrock:PrepareAgent
+  #                 - bedrock:CreateAgentAlias
+  #                 - bedrock:DeleteAgentAlias
+  #                 - bedrock:GetAgent
+  #               Resource: !Sub arn:aws:bedrock:${AWS::Region}:${AWS::AccountId}:agent/${AgentResource}
+  #       - PolicyName: BedrockAgentAliasPolicy
+  #         PolicyDocument:
+  #           Version: '2012-10-17'
+  #           Statement:
+  #             - Effect: Allow
+  #               Action:
+  #                 - bedrock:CreateAgentAlias
+  #                 - bedrock:DeleteAgentAlias
+  #               Resource: !Sub arn:aws:bedrock:${AWS::Region}:${AWS::AccountId}:agent-alias/*
+  #       - PolicyName: SSMParameterPolicy
+  #         PolicyDocument:
+  #           Version: '2012-10-17'
+  #           Statement:
+  #             - Effect: Allow
+  #               Action:
+  #                 - ssm:GetParameter
+  #                 - ssm:PutParameter
+  #               Resource: !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/streamlitapp/*
   BedrockKBExecutionRole:
     Type: 'AWS::IAM::Role'
     Properties:
