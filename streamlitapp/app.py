@@ -69,6 +69,16 @@ with st.sidebar:
     actions = bedrock.listActions()
     selected_actions = []
     for action in actions:
+        if action == "sqlActionGroup":
+            action = "Text2SQL"
+        if action == "scientificAnalysisActionGroup":
+            action = "Scientific analysis"
+        if action == "queryPubMed":
+            action = "Biomedical analysis"
+        if action == "imagingBiomarkerProcessing":
+            action = "Medical Image processing"
+        if action == "survival-data-processing":
+            action = "Survival Data Processing"
         if st.checkbox(action, key=f"action_{action}"):
             selected_actions.append(action)
     
@@ -80,9 +90,25 @@ with st.sidebar:
 st.title("Biomarker Research Agent")
 
 col1, col2 = st.columns([6, 1])
+
 with col2:
     st.link_button("Github 😎", "https://github.com/aws-samples/amazon-bedrock-agents-cancer-biomarker-discovery")
+sample_questions = [
+    "How many patients with diagnosis age greater than 50 years and what are their smoking status",
+    "What is the survival status for patients who have undergone chemotherapy",
+    "Can you search pubmed for evidence around the effects of biomarker use in oncology on clinical trial failure risk",
+    "Can you search pubmed for FDA approved biomarkers for non small cell lung cancer",
+    "What is the best gene biomarker (lowest p value) with overall survival for patients that have undergone chemotherapy",
+    "Show me a Kaplan Meier chart for biomarker with name 'gdf15' for chemotherapy patients by grouping expression values less than 10 and greater than 10",
+    "According to literature evidence, what metagene cluster does gdf15 belong to",
+    "According to literature evidence, what properties of the tumor are associated with metagene 19 activity and EGFR pathway",
+    "Can you compute the imaging biomarkers for the 2 patients with the lowest gdf15 expression values",
+    "Can you highlight the elongation and sphericity of the tumor with these patients ? can you depict the images of them"
+]
 
+selected_question = st.selectbox("Select a sample question from the drop ", [""] + sample_questions)
+
+# Input area
 if "chat_history" not in st.session_state or len(st.session_state["chat_history"]) == 0:
     st.session_state["chat_history"] = [
         {
@@ -141,6 +167,7 @@ elif fetch_image:
 
 
 # Input area
+  
 prompt = st.chat_input("Ask the bot a question...")
 
 if prompt:
