@@ -279,7 +279,7 @@ Resources:
                 - aws s3 cp ncbi_article.pdf s3://${S3Bucket}/ncbi_article.pdf
                 - echo "NCBI article uploaded to S3"
                 - echo "Cloning Git repository..."
-                - git clone -b ${GitBranch} --single-branch ${GithubLink} repo
+                - git clone -b ${GitBranch} --single-branch ${GitRepoURL} repo
                 - echo "Zipping Lambda function..."
                 - cd repo/ActionGroups/pubmed-lambda-function
                 - echo "Creating list of items to zip..."
@@ -344,7 +344,7 @@ Resources:
               commands:
                 - echo "Starting build phase"
                 - echo "Cloning Git repository..."
-                - git clone -b ${GitBranch} --single-branch ${GithubLink} repo
+                - git clone -b ${GitBranch} --single-branch ${GitRepoURL} repo
                 - cd repo/ActionGroups/scientific-plots-with-lifelines
                 - echo "Building Docker image..."
                 - docker build -t lifelines-python3.12-v2 .
@@ -390,7 +390,7 @@ Resources:
                 - echo Logging in to Amazon ECR...
                 - aws ecr get-login-password --region ${AWS::Region} | docker login --username AWS --password-stdin ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com
                 - echo Cloning the repository...
-                - git clone -b ${GitBranch} --single-branch ${GithubLink} repo
+                - git clone -b ${GitBranch} --single-branch ${GitRepoURL} repo
                 - cd repo/ActionGroups/imaging-biomarker 
                 - echo Checking for required files...
                 - ls -la
