@@ -34,6 +34,11 @@ Parameters:
     Type: String
     Default: latest
     Description: Tag of the Docker image to deploy
+  GitBranch:
+    Type: String
+    Description: 'The github branch to clone, change only for dev testing'
+    Default: 'main'
+
 
 Resources:
 # VPC
@@ -377,7 +382,7 @@ Resources:
               commands:
                 - echo "Starting build phase"
                 - echo "Cloning Git repository..."
-                - git clone ${GitRepoURL} repo
+                - git clone -b ${GitBranch} --single-branch ${GitRepoURL} repo
                 - cd repo/streamlitapp
                 - echo Build started on `date`
                 - echo "Renaming Dockerfile.txt to Dockerfile"
