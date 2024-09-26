@@ -609,7 +609,7 @@ Resources:
               COMMENT ON COLUMN "dev"."public"."clinical_genomic".Survival_Status IS 'BOOLEAN 0 represents Alive and 1 represent Dead';
               COMMENT ON COLUMN "dev"."public"."clinical_genomic".Time_to_Death IS 'Time to death in days, or 0 if alive';
               COMMENT ON COLUMN "dev"."public"."clinical_genomic".Days_between_CT_and_surgery IS 'Number of days between CT scan and surgery';
-              COMMENT ON COLUMN "dev"."public"."clinical_genomic".Survival_Duration IS 'duration of paitent survial';
+              COMMENT ON COLUMN "dev"."public"."clinical_genomic".Survival_Duration IS 'duration of paitent survial in years';
             """
             
             response = redshift_data.execute_statement(
