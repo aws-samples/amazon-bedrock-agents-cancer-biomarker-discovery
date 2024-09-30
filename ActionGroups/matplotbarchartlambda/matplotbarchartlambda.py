@@ -23,7 +23,6 @@ def bar_chart(title, x_values, y_values, x_label, y_label):
     ax.set_xlabel(x_label)
     ax.set_ylabel(y_label)
     
-  
     output_name=f"{title}.png"
     
     img_data = io.BytesIO()
@@ -34,16 +33,12 @@ def bar_chart(title, x_values, y_values, x_label, y_label):
     KEY = 'graphs/' + str(output_name)
     bucket.put_object(Body=img_data, ContentType='image/png', Key=KEY)
     
-    
     result = f'Your bar chart named {title} is saved to your s3 bucket'
     print(result)
-
     return 
-
 
 def handler(event, context):
     # TODO implement
-    
     agent = event['agent']
     actionGroup = event['actionGroup']
     function = event['function']
@@ -62,7 +57,6 @@ def handler(event, context):
                 if param["name"] == "y_label":
                     y_label = param["value"]
                 
- 
         # Execute your business logic here. For more information, refer to: https://docs.aws.amazon.com/bedrock/latest/userguide/agents-lambda.html
         bar_chart(title,x_values, y_values, x_label, y_label)
         print('successfully finished')
