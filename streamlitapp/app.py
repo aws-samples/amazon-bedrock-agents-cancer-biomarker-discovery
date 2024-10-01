@@ -51,6 +51,8 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
+
+
 # Sidebar for S3 PNG Image Viewer and S3 Image Retrieval
 with st.sidebar:
     st.header('Image Controls')
@@ -74,7 +76,7 @@ with st.sidebar:
         if action == "scientificAnalysisActionGroup":
             action = "Scientific analysis"
         if action == "queryPubMed":
-            action = "Biomedical analysis"
+            action = "Biomedical Literature"
         if action == "imagingBiomarkerProcessing":
             action = "Medical Image processing"
         if action == "survival-data-processing":
@@ -93,7 +95,8 @@ col1, col2 = st.columns([6, 1])
 
 with col2:
     st.link_button("Github 😎", "https://github.com/aws-samples/amazon-bedrock-agents-cancer-biomarker-discovery")
-sample_questions = [
+
+questions = [
     "How many patients with diagnosis age greater than 50 years and what are their smoking status",
     "What is the survival status for patients who have undergone chemotherapy",
     "Can you search pubmed for evidence around the effects of biomarker use in oncology on clinical trial failure risk",
@@ -106,7 +109,49 @@ sample_questions = [
     "Can you highlight the elongation and sphericity of the tumor with these patients ? can you depict the images of them"
 ]
 
-selected_question = st.selectbox("Select a sample question from the drop ", [""] + sample_questions)
+# CSS to create a scrollable dropdown
+css = """
+<style>
+    details {
+        border: 1px solid #aaa;
+        border-radius: 4px;
+        padding: .5em .5em 0;
+    }
+    summary {
+        font-weight: bold;
+        margin: -.5em -.5em 0;
+        padding: .5em;
+    }
+    details[open] {
+        padding: .5em;
+    }
+    details[open] summary {
+        border-bottom: 1px solid #aaa;
+        margin-bottom: .5em;
+    }
+    .scrollable-content {
+        max-height: 200px;
+        overflow-y: auto;
+        padding-right: 10px;
+    }
+</style>
+"""
+
+# HTML for the dropdown
+html = f"""
+{css}
+<details>
+    <summary>Click to sample expand questions</summary>
+    <div class="scrollable-content">
+        <ol>
+            {"".join(f"<li>{q}</li>" for q in questions)}
+        </ol>
+    </div>
+</details>
+"""
+
+# Render the dropdown
+st.markdown(html, unsafe_allow_html=True)
 
 # Input area
 if "chat_history" not in st.session_state or len(st.session_state["chat_history"]) == 0:
@@ -167,7 +212,7 @@ elif fetch_image:
 
 
 # Input area
-  
+
 prompt = st.chat_input("Ask the bot a question...")
 
 if prompt:
