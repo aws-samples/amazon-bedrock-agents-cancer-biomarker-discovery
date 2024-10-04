@@ -5,6 +5,7 @@ import boto3
 import io
 import pandas as pd
 import os
+import ast
 
 # Get environment variables
 sfn_statemachine_name = os.environ['SFN_STATEMACHINE_NAME']
@@ -31,7 +32,14 @@ def lambda_handler(event, context):
         subject_id = None
         for param in parameters:
             if param["name"] == "subject_id":
-                subject_id = json.loads(param["value"])
+                # Parse the string representation of the list
+                if isinstance(param['value'], str): 
+                    print("Parse the string representation of the list")
+                    subject_id = ast.literal_eval(param['value'])
+                    print(type(subject_id))
+                    #subject_id = json.loads(parsed_value)
+                else:
+                    subject_id = json.loads(param["value"])
         if subject_id:
             suffix = uuid.uuid1().hex[:6]  # to be used in resource names
             
