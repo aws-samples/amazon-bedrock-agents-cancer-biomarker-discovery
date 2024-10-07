@@ -192,14 +192,23 @@ def lambda_handler(event, context):
             if param["name"] == "key":
                 key = param["value"]
                 print(key)
-        obj = s3.get_object(Bucket=bucket, Key=key)
-        data = json.loads(obj['Body'].read().decode('utf-8'))
-        summary = fit_survival_regression_model(data)
-        responseBody =  {
-            "TEXT": {
-                "body": "The function {} was called successfully! with a response summary as {}".format(function,summary)
+        try:
+            obj = s3.get_object(Bucket=bucket, Key=key)
+            data = json.loads(obj['Body'].read().decode('utf-8'))
+            summary = fit_survival_regression_model(data)
+            responseBody = {
+                "TEXT": {
+                    "body": "The function {} was called successfully! with a response summary as {}".format(function, summary)
+                }
             }
-        }
+        except Exception as e:
+            error_message = str(e)
+            responseBody = {
+                "TEXT": {
+                    "body": f"An error occurred while processing the function {function}: {error_message}"
+                }
+            }
+            print(f"Error: {error_message}")
 
     action_response = {
         'actionGroup': actionGroup,
