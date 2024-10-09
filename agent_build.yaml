@@ -912,6 +912,9 @@ Resources:
 
       Description: "Agent for querying biomaker database."
       ActionGroups:
+        - ActionGroupName: 'UserInputAction'
+          ParentActionGroupSignature: 'AMAZON.UserInput'
+          ActionGroupState: 'ENABLED'
         - ActionGroupName: sqlActionGroup
           Description: Action for getting the database schema and querying the database
           ActionGroupExecutor: 
