@@ -39,6 +39,18 @@ Parameters:
     Description: 'The github branch to clone, change only for dev testing'
     Default: 'main'
 
+Mappings:
+  # Cloudfront Mappings
+  ELBRegionMap:
+    'us-east-1':
+      ELBAccountId: '127311923021'
+    'us-west-2':
+      ELBAccountId: '797873946194'
+  CFRegionMap:
+    'us-east-1':
+      PrefixListCloudFront: 'pl-3b927c52'
+    'us-west-2':
+      PrefixListCloudFront: 'pl-82a045eb'
 
 Resources:
 # VPC
@@ -270,7 +282,7 @@ Resources:
 
   ECSService:
     Type: AWS::ECS::Service
-    DependsOn: ALBListener
+    DependsOn: StreamlitHTTPListener
     Properties:
       ServiceName: streamlit-service
       Cluster: !Ref ECSCluster
@@ -288,7 +300,7 @@ Resources:
       LoadBalancers:
         - ContainerName: streamlit-container
           ContainerPort: 80
-          TargetGroupArn: !Ref ALBTargetGroup
+          TargetGroupArn: !Ref StreamlitContainerTargetGroup
 
   ContainerSecurityGroup:
     Type: AWS::EC2::SecurityGroup
@@ -299,51 +311,246 @@ Resources:
         - IpProtocol: tcp
           FromPort: 80
           ToPort: 80
-          SourceSecurityGroupId: !Ref ALBSecurityGroup
+          SourceSecurityGroupId: !Ref StreamlitALBSecurityGroup
 
-  ALBSecurityGroup:
-    Type: AWS::EC2::SecurityGroup
-    Properties:
-      GroupDescription: Security group for ALB
-      VpcId: !Ref VPC
-      SecurityGroupIngress:
-        - IpProtocol: tcp
-          FromPort: 80
-          ToPort: 80
-          CidrIp: 0.0.0.0/0
 
-  ALB:
-    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+  
+  StreamlitHTTPListener:
+    Type: "AWS::ElasticLoadBalancingV2::Listener"
     Properties:
-      Scheme: internet-facing
-      LoadBalancerAttributes:
-        - Key: idle_timeout.timeout_seconds
-          Value: '30'
-      Subnets:
-        - !Ref PublicSubnetA
-        - !Ref PublicSubnetB
-      SecurityGroups:
-        - !Ref ALBSecurityGroup
-
-  ALBListener:
-    Type: AWS::ElasticLoadBalancingV2::Listener
-    Properties:
-      DefaultActions:
-        - Type: forward
-          TargetGroupArn: !Ref ALBTargetGroup
-      LoadBalancerArn: !Ref ALB
+      LoadBalancerArn: !Ref StreamlitApplicationLoadBalancer
       Port: 80
       Protocol: HTTP
-
-  ALBTargetGroup:
-    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+      DefaultActions: 
+        - FixedResponseConfig:
+            ContentType: text/plain
+            MessageBody: Access denied
+            StatusCode: 403
+          Type: fixed-response
+  StreamlitContainerTargetGroup:
+    Type: "AWS::ElasticLoadBalancingV2::TargetGroup"
     Properties:
-      HealthCheckPath: /
-      Name: streamlit-tg
       Port: 80
-      Protocol: HTTP
+      Protocol: "HTTP"
       TargetType: ip
       VpcId: !Ref VPC
+      Name: !Join ['-', ['StreamlitContainerTG', !Ref EnvironmentName]]
+  
+  StreamlitALBListenerRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties: 
+      Actions: 
+        - Type: forward
+          TargetGroupArn: !Ref StreamlitContainerTargetGroup
+      Conditions: 
+        - Field: http-header
+          HttpHeaderConfig:
+            HttpHeaderName: X-Custom-Header
+            Values: 
+              - !Join ['-', [!Sub "${AWS::StackName}", !Sub "${AWS::AccountId}"]]
+      ListenerArn: !Ref StreamlitHTTPListener
+      Priority: 1
+
+  
+  StreamlitApplicationLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: !Join ['-', ['StreamlitALB', !Ref EnvironmentName]]
+      LoadBalancerAttributes:
+        - Key: access_logs.s3.enabled
+          Value: true
+        - Key: access_logs.s3.bucket
+          Value: !Ref LoggingBucket
+        - Key: access_logs.s3.prefix
+          Value: alb/logs
+        - Key: load_balancing.cross_zone.enabled
+          Value: true
+      Scheme: internet-facing
+      Type: application
+      Subnets: 
+        - !Ref PublicSubnetA
+        - !Ref PublicSubnetB
+      SecurityGroups: 
+        - !Ref StreamlitALBSecurityGroup
+      IpAddressType: ipv4
+
+  StreamlitALBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow http to the internet
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Join ['-', ['StreamlitALBSecurityGroup', !Ref EnvironmentName]]
+  
+  ALBSGDefaultOutBoundRule:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      GroupId: !GetAtt StreamlitALBSecurityGroup.GroupId
+      IpProtocol: "-1"
+      CidrIp: 0.0.0.0/0
+      Description: Deny all outbound traffic by default
+
+  ALBSGOutBoundRule:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      GroupId: !GetAtt StreamlitALBSecurityGroup.GroupId
+      IpProtocol: tcp
+      FromPort: 80
+      ToPort: 80
+      CidrIp: 0.0.0.0/0
+      Description: Allow container port outbound
+  
+  ALBSGInBoundRule:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !GetAtt StreamlitALBSecurityGroup.GroupId
+      IpProtocol: tcp
+      FromPort: 80
+      ToPort: 80
+      SourcePrefixListId: !FindInMap ['CFRegionMap', !Ref 'AWS::Region', 'PrefixListCloudFront']
+      Description: Allow container port from CloudFront 
+  
+  StreamlitContainerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow container traffic from ALB
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Join ['-', ['StreamlitContainerSecurityGroup', !Ref EnvironmentName]]
+
+  ContainerSGDefaultOutBoundRule:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      GroupId: !GetAtt StreamlitContainerSecurityGroup.GroupId
+      IpProtocol: "-1"
+      CidrIp: 0.0.0.0/0
+      Description: Deny all outbound traffic by default
+
+  ContainerSGOutBoundRule:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      GroupId: !GetAtt StreamlitContainerSecurityGroup.GroupId
+      IpProtocol: tcp
+      FromPort: 80 
+      ToPort: 80
+      CidrIp: 0.0.0.0/0
+      Description: Allow container port outbound
+  
+  ContainerSGInBoundRule:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !GetAtt StreamlitContainerSecurityGroup.GroupId
+      IpProtocol: tcp
+      FromPort: 80
+      ToPort: 80
+      SourceSecurityGroupId: !Ref StreamlitALBSecurityGroup
+      Description: Allow Container port from ALB SG
+
+  Distribution:
+    Type: "AWS::CloudFront::Distribution"
+    Properties:
+      DistributionConfig: 
+        Origins: 
+          - ConnectionAttempts: 3
+            ConnectionTimeout: 10
+            DomainName: !GetAtt StreamlitApplicationLoadBalancer.DNSName
+            Id: !Ref StreamlitApplicationLoadBalancer
+            OriginCustomHeaders:
+               - HeaderName: X-Custom-Header
+                 HeaderValue: !Join ['-', [!Sub "${AWS::StackName}", !Sub "${AWS::AccountId}"]]
+            CustomOriginConfig:
+              HTTPPort: '80'
+              OriginProtocolPolicy: 'http-only'
+        DefaultCacheBehavior: 
+          ForwardedValues:
+            Cookies:
+              Forward: whitelist
+              WhitelistedNames: [token]
+            QueryString: true
+            QueryStringCacheKeys: [code]
+          Compress: true
+          ViewerProtocolPolicy: 'https-only'
+          AllowedMethods: 
+            - "HEAD"
+            - "DELETE"
+            - "POST"
+            - "GET"
+            - "OPTIONS"
+            - "PUT"
+            - "PATCH"
+          CachedMethods: 
+            - "HEAD"
+            - "GET"
+          CachePolicyId: "658327ea-f89d-4fab-a63d-7e88639e58f6"
+          OriginRequestPolicyId: "216adef6-5c7f-47e4-b989-5492eafa07d3"
+          TargetOriginId: !Ref StreamlitApplicationLoadBalancer
+        PriceClass: "PriceClass_All"
+        Enabled: true                  
+        HttpVersion: "http2"
+        IPV6Enabled: true
+        Logging: 
+          Bucket: !Sub '${LoggingBucket}.s3.amazonaws.com'
+          IncludeCookies: true
+          Prefix: !Sub distribution-${EnvironmentName}-logs/
+        ViewerCertificate:
+          CloudFrontDefaultCertificate: true
+          MinimumProtocolVersion: TLSv1.2_2018
+      Tags:
+        - Key: CloudfrontStreamlitApp
+          Value: !Sub ${AWS::StackName}-Cloudfront
+
+  LoggingBucket: 
+    Type: "AWS::S3::Bucket"
+    DeletionPolicy: Retain
+    Properties:
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerPreferred
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      VersioningConfiguration:
+        Status: Enabled
+
+  LoggingBucketPolicy:
+    Type: 'AWS::S3::BucketPolicy'
+    Properties:
+      Bucket: !Ref LoggingBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Action:
+              - 's3:PutObject'
+            Effect: Allow
+            Principal:
+              Service: logging.s3.amazonaws.com
+            Resource: 
+              - !Sub arn:aws:s3:::${LoggingBucket}/*
+          - Action:
+              - 's3:PutObject'
+            Effect: Allow
+            Principal:
+              AWS: !Sub 
+                    - arn:aws:iam::${ElbAccount}:root
+                    - {ElbAccount: !FindInMap [ELBRegionMap, !Ref 'AWS::Region', ELBAccountId]}
+            Resource: 
+              - !Sub arn:aws:s3:::${LoggingBucket}/alb/logs/AWSLogs/${AWS::AccountId}/*
+          - Action:
+              - 's3:*'
+            Effect: Deny
+            Resource: 
+              - !Sub arn:aws:s3:::${LoggingBucket}/*
+              - !Sub arn:aws:s3:::${LoggingBucket}
+            Principal: "*"
+            Condition:
+              Bool:
+                'aws:SecureTransport': 'false'
+  
+
 
   # CodeBuild Project and related resources
   StreamlitAppLogic:
@@ -609,9 +816,9 @@ Resources:
       ProjectName: !Ref StreamlitAppLogic
 
 Outputs:
-  StreamlitAppURL:
-    Description: URL of the Streamlit application
-    Value: !Sub http://${ALB.DNSName}
+  CloudfrontURL:
+    Description: "CloudFront URL"
+    Value: !GetAtt Distribution.DomainName
   CodeBuildProjectName:
     Description: Name of the CodeBuild project
     Value: !Ref StreamlitAppLogic
