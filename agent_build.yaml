@@ -196,6 +196,7 @@ Resources:
          DestinationBucketName: !Ref LogBucket
          LogFilePrefix: 'access-logs/'
 
+#Forces SSL/TLS encryption for all S3 operations on the S3 Bucket
   S3BucketPolicy:
     Type: AWS::S3::BucketPolicy
     Properties:
@@ -247,7 +248,7 @@ Resources:
     Type: AWS::CodeBuild::Project
     Properties:
       Name: DataRetrievalLogic
-      ServiceRole: !GetAtt CodeBuildRole.Arn
+      ServiceRole: !GetAtt DataRetrievalRole.Arn
       Artifacts:
         Type: NO_ARTIFACTS
       LogsConfig:
@@ -330,7 +331,7 @@ Resources:
     Type: AWS::CodeBuild::Project
     Properties:
       Name: DockerPushProject
-      ServiceRole: !GetAtt CodeBuildRole.Arn
+      ServiceRole: !GetAtt DockerPushRole.Arn
       Artifacts:
         Type: NO_ARTIFACTS
       LogsConfig:
@@ -392,7 +393,7 @@ Resources:
         Image: aws/codebuild/amazonlinux2-x86_64-standard:3.0
         Type: LINUX_CONTAINER
         PrivilegedMode: true
-      ServiceRole: !GetAtt CodeBuildRole.Arn
+      ServiceRole: !GetAtt ImagingDockerBuildRole.Arn
       Source:
         Type: GITHUB
         Location: !Ref GitRepoURL
@@ -559,10 +560,7 @@ Resources:
             S3Bucket: !Sub "s3://${S3Bucket}",
             SageMakerExecutionRoleArn: !GetAtt SageMakerExecutionRole.Arn
           }
-
-
-  # IAM role for CodeBuild
-  CodeBuildRole:
+  DataRetrievalRole:
     Type: AWS::IAM::Role
     Properties:
       AssumeRolePolicyDocument:
@@ -572,33 +570,7 @@ Resources:
             Principal:
               Service: codebuild.amazonaws.com
             Action: sts:AssumeRole
-      ManagedPolicyArns:
-        - 'arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryPowerUser'
-        - 'arn:aws:iam::aws:policy/CloudWatchLogsFullAccess'
       Policies:
-        - PolicyName: CodeBuildBasePolicy
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Resource: '*'
-                Action:
-                  - 'logs:CreateLogGroup'
-                  - 'logs:CreateLogStream'
-                  - 'logs:PutLogEvents'
-              - Effect: Allow
-                Resource: 
-                  - !Sub 'arn:aws:s3:::${AWS::AccountId}-codepipeline-${AWS::Region}'
-                  - !Sub 'arn:aws:s3:::${AWS::AccountId}-codepipeline-${AWS::Region}/*'
-                Action:
-                  - 's3:GetObject'
-                  - 's3:GetObjectVersion'
-                  - 's3:GetBucketVersioning'
-                  - 's3:PutObject'
-              - Effect: Allow
-                Resource: '*'
-                Action:
-                  - 'ecr:GetAuthorizationToken'
         - PolicyName: S3Access
           PolicyDocument:
             Version: '2012-10-17'
@@ -607,10 +579,32 @@ Resources:
                 Action:
                   - s3:PutObject
                   - s3:GetObject
-                  - s3:ListBucket
                 Resource: 
                   - !GetAtt S3Bucket.Arn
                   - !Sub "${S3Bucket.Arn}/*"
+        - PolicyName: CloudWatchLogs
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: 
+                  - !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/*'
+                  - !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/*:*'
+  DockerPushRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: codebuild.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
         - PolicyName: ECRAccess
           PolicyDocument:
             Version: '2012-10-17'
@@ -618,19 +612,91 @@ Resources:
               - Effect: Allow
                 Action:
                   - ecr:GetAuthorizationToken
+                Resource: '*'  # This action requires resource '*'
+              - Effect: Allow
+                Action:
+                  - ecr:ListImages
                   - ecr:BatchCheckLayerAvailability
                   - ecr:GetDownloadUrlForLayer
-                  - ecr:GetRepositoryPolicy
-                  - ecr:DescribeRepositories
-                  - ecr:ListImages
-                  - ecr:DescribeImages
                   - ecr:BatchGetImage
                   - ecr:InitiateLayerUpload
                   - ecr:UploadLayerPart
                   - ecr:CompleteLayerUpload
                   - ecr:PutImage
+                Resource: 
+                  - !Sub 'arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/${ECRRepository}'
+        - PolicyName: CloudWatchLogs
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: 
+                  - !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/*'
+                  - !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/*:*'
+        - PolicyName: GitCloneAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - codecommit:GitPull
+                Resource: !Sub 'arn:aws:codecommit:${AWS::Region}:${AWS::AccountId}:${GitRepoURL}'
+  ImagingDockerBuildRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: codebuild.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: ECRAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ecr:GetAuthorizationToken
                 Resource: '*'
-  
+              - Effect: Allow
+                Action:
+                  - ecr:ListImages
+                  - ecr:BatchCheckLayerAvailability
+                  - ecr:GetDownloadUrlForLayer
+                  - ecr:BatchGetImage
+                  - ecr:InitiateLayerUpload
+                  - ecr:UploadLayerPart
+                  - ecr:CompleteLayerUpload
+                  - ecr:PutImage
+                Resource: 
+                  - !Sub 'arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/medical-image-processing-smstudio'
+        - PolicyName: S3Access
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                Resource: 
+                  - !Sub "${S3Bucket.Arn}/Imaginglambdafunction.zip"
+        - PolicyName: CloudWatchLogs
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: 
+                  - !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/*'
+                  - !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/*:*'
   StepFunctionsExecutionRole:
     Type: AWS::IAM::Role
     Properties:
@@ -646,6 +712,7 @@ Resources:
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
+              # SageMaker permissions
               - Effect: Allow
                 Action:
                   - 'sagemaker:CreateProcessingJob'
@@ -653,17 +720,41 @@ Resources:
                   - 'sagemaker:StopProcessingJob'
                   - 'sagemaker:ListTags'
                   - 'sagemaker:AddTags'
-                Resource: '*'
+                Resource: !Sub 'arn:aws:sagemaker:${AWS::Region}:${AWS::AccountId}:processing-job/dcm-nifti-*'
+              # IAM permissions
               - Effect: Allow
                 Action:
                   - 'iam:PassRole'
                 Resource: !GetAtt SageMakerExecutionRole.Arn
+              # Step Functions Map state permissions
               - Effect: Allow
                 Action:
                   - 'events:PutTargets'
                   - 'events:PutRule'
                   - 'events:DescribeRule'
-                Resource: '*'
+                  - 'events:DeleteRule'
+                  - 'events:DisableRule'
+                  - 'events:EnableRule'
+                  - 'events:RemoveTargets'
+                Resource:
+                  - !Sub 'arn:aws:events:${AWS::Region}:${AWS::AccountId}:rule/StepFunctions-Map-*'
+                  - !Sub 'arn:aws:events:${AWS::Region}:${AWS::AccountId}:rule/StepFunctions-*'
+              # States permissions for Map state
+              - Effect: Allow
+                Action:
+                  - 'states:StartExecution'
+                  - 'states:StopExecution'
+                  - 'states:DescribeExecution'
+                  - 'states:CreateStateMachine'
+                  - 'states:DeleteStateMachine'
+                  - 'states:UpdateStateMachine'
+                  - 'states:DescribeStateMachine'
+                  - 'states:DescribeStateMachineForExecution'
+                  - 'states:ListExecutions'
+                Resource: 
+                  - !Sub 'arn:aws:states:${AWS::Region}:${AWS::AccountId}:stateMachine:*'
+                  - !Sub 'arn:aws:states:${AWS::Region}:${AWS::AccountId}:execution:*:*'
+              # CloudWatch Logs permissions
               - Effect: Allow
                 Action:
                   - 'logs:CreateLogDelivery'
@@ -671,11 +762,27 @@ Resources:
                   - 'logs:UpdateLogDelivery'
                   - 'logs:DeleteLogDelivery'
                   - 'logs:ListLogDeliveries'
+                  - 'logs:PutLogEvents'
                   - 'logs:PutResourcePolicy'
                   - 'logs:DescribeResourcePolicies'
                   - 'logs:DescribeLogGroups'
-                Resource: '*'
-  
+                Resource: 
+                  - !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:*'
+              - Effect: Allow
+                Action:
+                  - 'lambda:InvokeFunction'
+                Resource: !Sub 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:*'
+        - PolicyName: EventsPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'events:PutTargets'
+                  - 'events:PutRule'
+                  - 'events:DescribeRule'
+                Resource:
+                  - !Sub 'arn:aws:events:${AWS::Region}:${AWS::AccountId}:rule/*'
   SageMakerExecutionRole:
     Type: AWS::IAM::Role
     Properties:
@@ -686,24 +793,97 @@ Resources:
             Principal:
               Service: sagemaker.amazonaws.com
             Action: sts:AssumeRole
-      ManagedPolicyArns:
-        - 'arn:aws:iam::aws:policy/AmazonSageMakerFullAccess'
       Policies:
+        - PolicyName: SageMakerProcessingAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              # Processing Job Permissions
+              - Effect: Allow
+                Action:
+                  - 'sagemaker:CreateProcessingJob'
+                  - 'sagemaker:DescribeProcessingJob'
+                  - 'sagemaker:StopProcessingJob'
+                  - 'sagemaker:ListProcessingJobs'
+                Resource: !Sub 'arn:aws:sagemaker:${AWS::Region}:${AWS::AccountId}:processing-job/*'
+              # ECR Access for Container
+              - Effect: Allow
+                Action:
+                  - 'ecr:GetAuthorizationToken'
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - 'ecr:BatchCheckLayerAvailability'
+                  - 'ecr:GetDownloadUrlForLayer'
+                  - 'ecr:BatchGetImage'
+                Resource: 
+                  - !Sub 'arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/${ImagingECRRepository}'
         - PolicyName: S3Access
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              # Input data access
+              - Effect: Allow
+                Action:
+                  - 's3:GetObject'
+                  - 's3:ListBucket'
+                Resource:
+                  - 'arn:aws:s3:::sagemaker-solutions-prod-*'
+                  - 'arn:aws:s3:::sagemaker-solutions-prod-*/sagemaker-lung-cancer-survival-prediction/*'
+              # Output data access
+              - Effect: Allow
+                Action:
+                  - 's3:PutObject'
+                  - 's3:GetObject'
+                  - 's3:ListBucket'
+                Resource: 
+                  - !Sub 'arn:aws:s3:::${S3Bucket}'
+                  - !Sub 'arn:aws:s3:::${S3Bucket}/nsclc_radiogenomics/*'
+        - PolicyName: CloudWatchLogsAccess
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
               - Effect: Allow
                 Action:
-                  - 's3:GetObject'
-                  - 's3:PutObject'
-                  - 's3:ListBucket'
-                Resource: 
-                  - !Sub 'arn:aws:s3:::${S3Bucket}'
-                  - !Sub 'arn:aws:s3:::${S3Bucket}/*'
-                  - !Sub 'arn:aws:s3:::sagemaker-solutions-prod-${AWS::Region}/sagemaker-lung-cancer-survival-prediction/*'
+                  - 'logs:CreateLogGroup'
+                  - 'logs:CreateLogStream'
+                  - 'logs:PutLogEvents'
+                  - 'logs:DescribeLogStreams'
+                Resource:
+                  - !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/sagemaker/ProcessingJobs:*'
+                  - !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/sagemaker/ProcessingJobs:log-stream:*'
+        - PolicyName: KMSAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'kms:Decrypt'
+                  - 'kms:GenerateDataKey'
+                Resource: !Sub 'arn:aws:kms:${AWS::Region}:${AWS::AccountId}:key/*'
+                Condition:
+                  StringEquals:
+                    'kms:ViaService': !Sub 'sagemaker.${AWS::Region}.amazonaws.com'
 
-
+        - PolicyName: NetworkAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'ec2:CreateNetworkInterface'
+                  - 'ec2:CreateNetworkInterfacePermission'
+                  - 'ec2:DeleteNetworkInterface'
+                  - 'ec2:DeleteNetworkInterfacePermission'
+                  - 'ec2:DescribeNetworkInterfaces'
+                  - 'ec2:DescribeVpcs'
+                  - 'ec2:DescribeDhcpOptions'
+                  - 'ec2:DescribeSubnets'
+                  - 'ec2:DescribeSecurityGroups'
+                Resource: '*'
+                Condition:
+                  StringEquals:
+                    'aws:RequestedRegion': !Ref 'AWS::Region'
   TriggerBuildLambda:
     Type: AWS::Lambda::Function
     Properties:
@@ -782,7 +962,7 @@ Resources:
               Service: lambda.amazonaws.com
             Action: sts:AssumeRole
       Policies:
-        - PolicyName: CodeBuildStartBuildPolicy
+        - PolicyName: CodeBuildAccess
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
@@ -793,8 +973,8 @@ Resources:
                 Resource: 
                   - !GetAtt DockerPushLogic.Arn
                   - !GetAtt DataRetrievalLogic.Arn
-                  - !Sub arn:aws:codebuild:${AWS::Region}:${AWS::AccountId}:project/ImagingDockerBuildProject-*
-        - PolicyName: CloudWatchLogsPolicy
+                  - !Sub 'arn:aws:codebuild:${AWS::Region}:${AWS::AccountId}:project/ImagingDockerBuildProject-*'
+        - PolicyName: CloudWatchLogs
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
@@ -803,22 +983,18 @@ Resources:
                   - logs:CreateLogGroup
                   - logs:CreateLogStream
                   - logs:PutLogEvents
-                Resource: arn:aws:logs:*:*:*
-        - PolicyName: ECRDescribeImagesPolicy
+                Resource: 
+                  - !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${AWS::StackName}-TriggerBuildLambda-*'
+        - PolicyName: ECRDescribeAccess
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
               - Effect: Allow
                 Action: ecr:DescribeImages
-                Resource: '*'
-        - PolicyName: PassRoleToCodeBuild
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - iam:PassRole
-                Resource: !GetAtt CodeBuildRole.Arn
+                Resource: 
+                  - !Sub 'arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/${ECRRepository}'
+                  - !Sub 'arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/medical-image-processing-smstudio'
+  
   
   TriggerBuildCustomResource:
     Type: Custom::TriggerBuild
@@ -1317,7 +1493,7 @@ Resources:
                   - bedrock:InvokeModel
                 Resource: !Sub arn:aws:bedrock:${AWS::Region}::foundation-model/anthropic.claude-3-5-sonnet-20240620-v1:0
                     
-                  
+                
   AgentLambdaPermission:
     Type: AWS::Lambda::Permission
     Properties:
@@ -1373,7 +1549,6 @@ Resources:
       Principal: bedrock.amazonaws.com
       SourceArn: !GetAtt AgentResource.AgentArn
   
-  
   QueryPubMedLambdaRole:
     Type: 'AWS::IAM::Role'
     Properties:
@@ -1384,9 +1559,19 @@ Resources:
             Principal:
               Service: lambda.amazonaws.com
             Action: 'sts:AssumeRole'
-      ManagedPolicyArns:
-        - 'arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole'
-        - arn:aws:iam::aws:policy/AmazonBedrockFullAccess
+      Policies:
+        - PolicyName: CloudWatchLogsAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'logs:CreateLogGroup'
+                  - 'logs:CreateLogStream'
+                  - 'logs:PutLogEvents'
+                Resource: 
+                  - !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/PubMedQueryFunction-*'
+                  - !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/PubMedQueryFunction-*:log-stream:*'
 
   QueryPubMedLambdaFunction:
     Type: 'AWS::Lambda::Function'
@@ -1412,7 +1597,6 @@ Resources:
   
   SurvivalDataProcessingLambdaRole:
     Type: 'AWS::IAM::Role'
-    DependsOn: TriggerDataRetrievalLogic
     Properties:
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
@@ -1421,12 +1605,26 @@ Resources:
             Principal:
               Service: lambda.amazonaws.com
             Action: 'sts:AssumeRole'
-      ManagedPolicyArns:
-        - 'arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole'
-        - arn:aws:iam::aws:policy/AmazonBedrockFullAccess
+      Policies:
+        - PolicyName: CloudWatchLogsAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'logs:CreateLogGroup'
+                  - 'logs:CreateLogStream'
+                  - 'logs:PutLogEvents'
+                Resource: 
+                  - !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/SurvivalDataProcessingFunction-*'
+                  - !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/SurvivalDataProcessingFunction-*:log-stream:*'
+       
 
   SurvivalDataProcessingLambdaFunction:
     Type: 'AWS::Lambda::Function'
+    DependsOn: 
+      - DataRetrievalLogic
+      - ImagingBiomarkerLambda
     Properties:
       FunctionName: SurvivalDataProcessingFunction
       Handler: survivaldataprocessinglambda.lambda_handler
@@ -1467,7 +1665,7 @@ Resources:
           S3BUCKET: !Sub s3://${S3Bucket}
       Layers:
         - !FindInMap [RegionMap, !Ref 'AWS::Region', PandasLayer]
-  
+
   ImagingLambdaExecutionRole:
     Type: AWS::IAM::Role
     Properties:
@@ -1502,10 +1700,7 @@ Resources:
                 Action:
                   - states:StartExecution
                 Resource: !Ref ImagingStateMachine
-      ManagedPolicyArns:
-        - 'arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole'
-        - arn:aws:iam::aws:policy/AmazonBedrockFullAccess
-  
+    
   ImagingLambdaPermission:
     Type: AWS::Lambda::Permission
     Properties:
@@ -1923,15 +2118,6 @@ Resources:
               - aoss:Update*
               - aoss:Delete*
               Resource: 'arn:aws:logs:*:*:*'
-        - PolicyName: OSSLambdaRoleDefaultPolicy
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-            - Effect: Allow
-              Action:
-              - xray:PutTelemetryRecords
-              - xray:PutTraceSegments
-              Resource: '*'
 
   OpenSearchIndexLambda:
     Type: AWS::Lambda::Function
