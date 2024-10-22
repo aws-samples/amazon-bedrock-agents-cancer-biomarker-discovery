@@ -51,6 +51,16 @@ Mappings:
 
 Resources:
   # Redshift Cluster
+  RedshiftClusterParameterGroup:
+    Type: AWS::Redshift::ClusterParameterGroup
+    Properties:
+      Description: Custom parameter group for Redshift cluster
+      ParameterGroupFamily: redshift-1.0
+      Parameters:
+        - ParameterName: enable_user_activity_logging
+          ParameterValue: "true"
+        - ParameterName: require_ssl
+          ParameterValue: "true"
   RedshiftCluster:
     Type: AWS::Redshift::Cluster
     Properties:
@@ -60,9 +70,46 @@ Resources:
       MasterUsername: !Ref RedshiftUserName
       MasterUserPassword: !Ref RedshiftPassword
       ClusterType: single-node
-      PubliclyAccessible: true
+      PubliclyAccessible: false
       VpcSecurityGroupIds: [!Ref SecurityGroup]
       ClusterSubnetGroupName: !Ref RedshiftSubnetGroup
+      ClusterParameterGroupName: !Ref RedshiftClusterParameterGroup
+      Encrypted: true
+      LoggingProperties:
+        BucketName: !Ref S3Bucket
+        S3KeyPrefix: 'redshift-logs/'
+        LogDestinationType: s3
+      IamRoles: 
+        - !GetAtt RedshiftRole.Arn
+  
+  RedshiftRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: redshift.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess
+      Policies:
+        - PolicyName: RedshiftS3LoggingPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:GetBucketLocation
+                  - s3:ListBucket
+                  - s3:GetBucketAcl
+                  - s3:PutBucketAcl
+                Resource:
+                  - !Sub arn:aws:s3:::${S3Bucket}
+                  - !Sub arn:aws:s3:::${S3Bucket}/*
+      
 
   # Redshift Subnet Group
   RedshiftSubnetGroup:
@@ -150,6 +197,7 @@ Resources:
   S3Bucket:
     Type: AWS::S3::Bucket
     Properties:
+      BucketName: !Sub '${AWS::StackName}-${AWS::AccountId}-${AWS::Region}'
       BucketEncryption:
         ServerSideEncryptionConfiguration:
           - ServerSideEncryptionByDefault:
@@ -181,7 +229,19 @@ Resources:
             Resource:
               - !Sub arn:aws:s3:::${S3Bucket}
               - !Sub arn:aws:s3:::${S3Bucket}/*
-
+          - Sid: AllowRedshiftLogging
+            Effect: Allow
+            Principal:
+              Service: redshift.amazonaws.com
+            Action:
+              - s3:PutObject
+              - s3:GetBucketLocation
+              - s3:ListBucket
+              - s3:GetBucketAcl
+              - s3:PutBucketAcl
+            Resource:
+              - !Sub arn:aws:s3:::${S3Bucket}
+              - !Sub arn:aws:s3:::${S3Bucket}/*
   S3DataProcessingLambdaRole:
     Type: 'AWS::IAM::Role'
     Properties:
@@ -203,8 +263,9 @@ Resources:
                 Action:
                   - 's3:CreateBucket'
                   - 's3:PutObject'
-                  - 's3:GetObject'
-                Resource: '*'
+                Resource: 
+                  - !Sub 'arn:aws:s3:::biomarkers-discovery-agent-test-${AWS::Region}-${AWS::AccountId}'
+                  - !Sub 'arn:aws:s3:::biomarkers-discovery-agent-test-${AWS::Region}-${AWS::AccountId}/*'
         - PolicyName: STSAccess
           PolicyDocument:
             Version: '2012-10-17'
@@ -803,17 +864,19 @@ Resources:
           import boto3
           import cfnresponse
 
+          def delete_bucket_contents(bucket):
+              s3 = boto3.resource('s3')
+              bucket = s3.Bucket(bucket)
+              bucket.objects.all().delete()
+
           def handler(event, context):
               if event['RequestType'] == 'Delete':
                   s3 = boto3.client('s3')
                   bucket = event['ResourceProperties']['S3Bucket']
-                  prefix = event['ResourceProperties']['S3Prefix']
                   try:
-                      # Delete objects
-                      s3.delete_object(Bucket=bucket, Key=f"{prefix}packaged_agent_build.yaml")
-                      print(f"Deleted packaged_agent_build.yaml from {bucket}")
-                      s3.delete_object(Bucket=bucket, Key=f"{prefix}packaged_streamlit_build.yaml")
-                      print(f"Deleted packaged_streamlit_build.yaml from {bucket}") 
+                      # Delete all objects in the bucket
+                      delete_bucket_contents(bucket)
+                      print(f"Deleted all contents from bucket: {bucket}")
                       cfnresponse.send(event, context, cfnresponse.SUCCESS, {})
                   except Exception as e:
                       print(f"Error: {str(e)}")
@@ -841,7 +904,10 @@ Resources:
               - Effect: Allow
                 Action:
                   - s3:DeleteObject
-                Resource: !Sub arn:aws:s3:::${S3Bucket}/*
+                  - s3:ListBucket
+                Resource:
+                  - !Sub arn:aws:s3:::${S3Bucket}
+                  - !Sub arn:aws:s3:::${S3Bucket}/*
         - PolicyName: CloudWatchLogsPolicy
           PolicyDocument:
             Version: '2012-10-17'
@@ -899,9 +965,6 @@ Resources:
             Principal:
               Service: codebuild.amazonaws.com
             Action: sts:AssumeRole
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/AWSCloudFormationFullAccess
-        - arn:aws:iam::aws:policy/AmazonS3FullAccess
       Policies:
         - PolicyName: CodeBuildAccessPolicy
           PolicyDocument:
@@ -912,8 +975,22 @@ Resources:
                   - logs:CreateLogGroup
                   - logs:CreateLogStream
                   - logs:PutLogEvents
-                  - codecommit:GitPull
-                Resource: '*'
+                Resource:
+                  - !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/${AWS::StackName}-AgentandUIBuild:*
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:ListBucket
+                Resource:
+                  - !Sub arn:aws:s3:::${S3Bucket}
+                  - !Sub arn:aws:s3:::${S3Bucket}/*
+              - Effect: Allow
+                Action:
+                  - cloudformation:PackageTemplate
+                Resource:
+                  - !Sub arn:aws:s3:::${S3Bucket}
+                  - !Sub arn:aws:s3:::${S3Bucket}/*
   
   AgentandUICodeBuild:
     Type: AWS::CodeBuild::Project
