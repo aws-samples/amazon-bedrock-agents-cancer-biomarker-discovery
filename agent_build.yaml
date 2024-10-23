@@ -1482,7 +1482,7 @@ Resources:
   ImagingLambdaExecutionRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: ImagingBiomarkerLambdaExecutionRole
+      RoleName: !Sub 'ImagingBiomarkerLambdaExecutionRole-${AWS::Region}'
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -1804,7 +1804,7 @@ Resources:
   BedrockKBExecutionRole:
     Type: 'AWS::IAM::Role'
     Properties:
-      RoleName: !Sub 'AmazonBedrockExecutionRoleForKnowledgeBase_${EnvironmentName}'
+      RoleName: !Sub 'AmazonBedrockExecutionRoleForKnowledgeBase_${EnvironmentName}_${AWS::Region}'
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
