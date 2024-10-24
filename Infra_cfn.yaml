@@ -61,6 +61,7 @@ Resources:
           ParameterValue: "true"
         - ParameterName: require_ssl
           ParameterValue: "true"
+
   RedshiftCluster:
     Type: AWS::Redshift::Cluster
     Properties:
@@ -111,15 +112,6 @@ Resources:
                   - !Sub arn:aws:s3:::${S3Bucket}/*
       
 
-  # Redshift Subnet Group
-  RedshiftSubnetGroup:
-    Type: AWS::Redshift::ClusterSubnetGroup
-    Properties:
-      Description: Redshift Subnet Group
-      SubnetIds:
-        - !Ref Subnet1
-        - !Ref Subnet2
-
   # Glue Connection
   JDBCConnection:
     Type: AWS::Glue::Connection
@@ -134,25 +126,37 @@ Resources:
           USERNAME: !Ref RedshiftUserName
           PASSWORD: !Ref RedshiftPassword
         PhysicalConnectionRequirements:
-          SubnetId: !Ref Subnet1
+          SubnetId: !Ref PrivateSubnet1
           SecurityGroupIdList: [!Ref SecurityGroup]
           AvailabilityZone: !Select 
             - 0
             - !GetAZs 
               Ref: 'AWS::Region'
 
-  # Security Group
+  
   SecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: Security group for database access
+      GroupDescription: Security group for Redshift cluster
       VpcId: !Ref VPC
       SecurityGroupIngress:
-        - IpProtocol: '-1'
-          FromPort: -1
-          ToPort: -1
-          CidrIp: '0.0.0.0/0'
-
+        - IpProtocol: tcp
+          FromPort: 5439
+          ToPort: 5439
+          CidrIp: 10.0.0.0/16  # Only allow access from within VPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-RedshiftSG
+  RedshiftSubnetGroup:
+    Type: AWS::Redshift::ClusterSubnetGroup
+    Properties:
+      Description: Subnet group for Redshift cluster
+      SubnetIds:
+        - !Ref PrivateSubnet1
+        - !Ref PrivateSubnet2
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-RedshiftSubnetGroup
   # VPC
   VPC:
     Type: AWS::EC2::VPC
@@ -160,6 +164,105 @@ Resources:
       CidrBlock: 10.0.0.0/16
       EnableDnsHostnames: true
       EnableDnsSupport: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-VPC
+  PrivateSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.1.0/24
+      AvailabilityZone: !Select 
+        - 0
+        - !GetAZs 
+          Ref: 'AWS::Region'
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-PrivateSubnet1
+  PrivateSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.2.0/24
+      AvailabilityZone: !Select 
+        - 1
+        - !GetAZs 
+          Ref: 'AWS::Region'
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-PrivateSubnet2
+  PublicSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.3.0/24
+      AvailabilityZone: !Select 
+        - 0
+        - !GetAZs 
+          Ref: 'AWS::Region'
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-PublicSubnet1
+  NatGatewayEIP:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+  NatGateway:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt NatGatewayEIP.AllocationId
+      SubnetId: !Ref PublicSubnet1
+  PrivateRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-PrivateRouteTable
+
+  PrivateRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGateway
+
+  PrivateSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnet1
+      RouteTableId: !Ref PrivateRouteTable
+
+  PrivateSubnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnet2
+      RouteTableId: !Ref PrivateRouteTable
+
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-PublicRouteTable
+
+  PublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: VPCGatewayAttachment
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  PublicSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet1
+      RouteTableId: !Ref PublicRouteTable
+
+
 
   # Internet Gateway
   InternetGateway:
@@ -171,28 +274,6 @@ Resources:
     Properties:
       VpcId: !Ref VPC
       InternetGatewayId: !Ref InternetGateway
-
-  # Subnet 1
-  Subnet1:
-    Type: AWS::EC2::Subnet
-    Properties:
-      AvailabilityZone: !Select 
-        - 0
-        - !GetAZs 
-          Ref: 'AWS::Region'
-      CidrBlock: 10.0.1.0/24
-      VpcId: !Ref VPC
-
-  # Subnet 2
-  Subnet2:
-    Type: AWS::EC2::Subnet
-    Properties:
-      AvailabilityZone: !Select 
-        - 1
-        - !GetAZs 
-          Ref: 'AWS::Region'
-      CidrBlock: 10.0.2.0/24
-      VpcId: !Ref VPC
   
   S3Bucket:
     Type: AWS::S3::Bucket
@@ -478,8 +559,7 @@ Resources:
                   - 'ec2:CreateNetworkInterface'
                   - 'ec2:DescribeNetworkInterfaces'
                   - 'ec2:DeleteNetworkInterface'
-                Resource: '*'
-
+                Resource: !GetAtt RedshiftCluster.ClusterNamespaceArn
   LambdaFunction:
     Type: 'AWS::Lambda::Function'
     Properties:
