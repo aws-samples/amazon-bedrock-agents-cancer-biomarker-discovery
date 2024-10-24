@@ -75,6 +75,9 @@ Here is an example chain of thought sequence with the agent. 11 questions are li
 
 
 1. Upload the `Infra_cfn.yaml` file from the [amazon-bedrock-agents-cancer-biomarker-discovery](https://github.com/aws-samples/amazon-bedrock-agents-cancer-biomarker-discovery) repository to AWS CloudFormation. This template will set up:
+> [!WARNING]  
+> Launching this stack will create 2 VPCs (Infrastructure and UI).
+
    - Networking infrastructure (VPC, Subnets, etc.)
    - Amazon Redshift database
    - Bedrock Agent with Actions
@@ -112,6 +115,41 @@ Here is an example chain of thought sequence with the agent. 11 questions are li
    1. Navigate to AWS CloudFormation via AWS Console search
    2. Click the Streamlit nested stack (format: `<stackname>-StreamlitBuildNestedStack-<123ABCXXXX>`)
    3. In the Outputs tab, find and click the StreamlitAppURL link
+
+
+## Contributing Guidelines
+
+### Setting Up Your Development Environment
+
+1. Fork the repository to your GitHub account. Ensure the fork remains public during development and testing.
+
+2. Clone your forked repository to your local machine.
+
+3. Update the GitHub URL in the following configuration files to point to your forked repository:
+   - `infra_cfn.yaml`
+   - `agent_build.yaml`
+   - `streamlit_build.yaml`
+
+4. For testing purposes, deploy the `infra_cfn.yaml` template to AWS CloudFormation.
+
+### Submitting a Pull Request
+
+1. Ensure you have forked the main repository: [amazon-bedrock-agents-cancer-biomarker-discovery](https://github.com/aws-samples/amazon-bedrock-agents-cancer-biomarker-discovery/tree/main)
+
+2. Create a new branch in your forked repository for your changes.
+
+3. Implement your changes, following the project's coding standards and guidelines.
+
+4. Commit your changes with clear, concise commit messages.
+
+5. Push your branch to your forked repository on GitHub.
+
+6. Open a pull request from your branch to the main repository's `main` branch.
+
+7. Provide a clear description of your changes in the pull request, including any relevant issue numbers.
+
+8. Be prepared to address any feedback or questions during the code review process.
+
 
 
 ## License
