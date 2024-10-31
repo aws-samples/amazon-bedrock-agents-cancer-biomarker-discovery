@@ -15,7 +15,7 @@ Parameters:
     ConstraintDescription: Must be lowercase, contain one number at the end, and be no more than 5 characters long.
   GitRepoURL:
     Type: String
-    Default: 'https://github.com/aws-samples/amazon-bedrock-agents-cancer-biomarker-discovery.git'
+    Default: 'https://github.com/berilunay/amazon-bedrock-agents-cancer-biomarker-discovery.git'
     Description: Git repository URL where the code files are stored
   ImageTag:
     Type: String
@@ -1185,6 +1185,7 @@ Resources:
                                 "summary": "Query pubmed to relevant information from abstracts of biomedical articles.",
                                 "description": "Query pubmed to relevant information from abstracts of biomedical articles. The PubMed API takes in the user query then returns the abstracts of top 5 relevant articles.",
                                 "operationId": "query-pubmed",
+                                "x-requireConfirmation": "ENABLED"
                                 "parameters": [
                                     {
                                         "name": "query",
@@ -1838,6 +1839,7 @@ Resources:
             Resource: 
               - !Sub 'arn:aws:bedrock:${AWS::Region}::foundation-model/amazon.titan-embed-text-v1'
               - !Sub 'arn:aws:bedrock:${AWS::Region}::foundation-model/anthropic.claude-3-sonnet-20240229-v1:0'
+              - !Sub 'arn:aws:bedrock:${AWS::Region}::foundation-model/anthropic.claude-3-5-sonnet-20240620-v1:0'
             Sid: BedrockInvokeModelStatement
       - PolicyName: OSSPolicy
         PolicyDocument:
