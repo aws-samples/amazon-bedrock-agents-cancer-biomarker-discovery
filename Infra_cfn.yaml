@@ -2,7 +2,7 @@ Parameters:
   BedrockModelId:
     Type: String
     Description: The ID of the Foundation Model to use for the Agent
-    Default: anthropic.claude-3-sonnet-20240229-v1:0
+    Default: anthropic.claude-3-5-sonnet-20240620-v1:0
   EnvironmentName:
     Type: String
     Description: The name of the agent environment, used to differentiate agent application. Must be lowercase, contain one number, and be no more than 5 characters long.
@@ -28,7 +28,7 @@ Parameters:
   GithubLink:
    Type: String
    Description: 'The link to the agent build cloudformation stack'
-   Default: 'https://github.com/aws-samples/amazon-bedrock-agents-cancer-biomarker-discovery.git'
+   Default: 'https://github.com/berilunay/amazon-bedrock-agents-cancer-biomarker-discovery.git'
   ImageTag:
     Type: String
     Default: latest

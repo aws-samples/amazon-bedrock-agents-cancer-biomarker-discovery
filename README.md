@@ -87,7 +87,7 @@ Here is an example chain of thought sequence with the agent. 11 questions are li
 2. Deploy the `Infra_cfn.yaml` template:
    - Default parameter values can remain unchanged
    - Parameter descriptions:
-     - `BedrockModelId`: ID of the Foundation Model for the Agent (permissions scoped to Anthropic Claude 3 Sonnet model)
+     - `BedrockModelId`: ID of the Foundation Model for the Agent (permissions scoped to Anthropic Claude 3.5 Sonnet model)
      - `EnvironmentName`: Differentiates the application if launched in the same AWS account (lowercase, one number, max 5 characters)
      - `RedshiftDatabaseName`: Name for the Redshift database
      - `RedshiftUserName`: Username for Redshift database login
