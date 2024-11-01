@@ -58,7 +58,7 @@ Resources:
     Type: "AWS::IAM::ManagedPolicy"
     Properties:
       Path: /
-      ManagedPolicyName: !Sub "LogsPolicy${EnvironmentName}"
+      ManagedPolicyName: !Sub "LogsPolicy${EnvironmentName}${AWS::Region}"
       PolicyDocument:
         Version: '2012-10-17'
         Statement:
