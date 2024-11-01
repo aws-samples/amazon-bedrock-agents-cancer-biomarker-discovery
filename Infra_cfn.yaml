@@ -546,20 +546,43 @@ Resources:
                 Action: 
                   - 's3:GetObject'
                   - 's3:ListBucket'
+                  - 's3:HeadObject'
+                  - 's3:GetObjectAttributes'
                 Resource: 
-                  - 'arn:aws:s3:::*'
-                  - 'arn:aws:s3:::*/*'
+                  - !Sub 'arn:aws:s3:::biomarkers-discovery-agent-test-${AWS::Region}-${AWS::AccountId}'
+                  - !Sub 'arn:aws:s3:::biomarkers-discovery-agent-test-${AWS::Region}-${AWS::AccountId}/*'
               - Effect: 'Allow'
                 Action: 
                   - 'redshift-data:*'
                   - 'redshift:*'
-                Resource: '*'
+                Resource: 
+                  - !Sub 'arn:aws:redshift:${AWS::Region}:${AWS::AccountId}:dbuser:biomarker-redshift-cluster/*'
+                  - !Sub 'arn:aws:redshift:${AWS::Region}:${AWS::AccountId}:dbuser:biomarker-redshift-cluster'
               - Effect: 'Allow'
                 Action: 
                   - 'ec2:CreateNetworkInterface'
-                  - 'ec2:DescribeNetworkInterfaces'
                   - 'ec2:DeleteNetworkInterface'
-                Resource: !GetAtt RedshiftCluster.ClusterNamespaceArn
+                  - 'ec2:DescribeNetworkInterfaces'
+                Resource: 
+                  - !Sub 'arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:network-interface/*'
+              - Effect: 'Allow'
+                Action:
+                  - 'ec2:DescribeSecurityGroups'
+                  - 'ec2:DescribeSubnets'
+                  - 'ec2:DescribeVpcs'
+                Resource:
+                  - !Sub 'arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:security-group/${SecurityGroup}'
+                  - !Sub 'arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:subnet/${PrivateSubnet1}'
+                  - !Sub 'arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:subnet/${PrivateSubnet2}'
+                  - !Sub 'arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:vpc/${VPC}'
+              - Effect: 'Allow'
+                Action: 
+                  - 'redshift:*'
+                  - 'redshift-data:*'
+                Resource: 
+                  - !Sub arn:aws:redshift:${AWS::Region}:${AWS::AccountId}:cluster:biomarker-redshift-cluster
+                  - !Sub arn:aws:redshift:${AWS::Region}:${AWS::AccountId}:dbname:biomarker-redshift-cluster/dev
+              
   LambdaFunction:
     Type: 'AWS::Lambda::Function'
     Properties:
@@ -575,6 +598,7 @@ Resources:
           import redshift_connector
           import pandas as pd
           import time
+          print("hello")
 
           s3_client = boto3.client('s3')
           redshift_data = boto3.client('redshift-data')
