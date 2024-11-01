@@ -139,6 +139,26 @@ class BedrockAgent:
         except Exception as e:
             st.error(f"Error listing image: {str(e)}")
             return None
+    def list_graph_files(self):
+        try:
+            self.s3_client = Session().client("s3")
+            prefix = 'graphs/'
+            response = self.s3_client.list_objects_v2(Bucket=self.s3_bucket_name, Prefix=prefix)
+            
+            # Get all PNG files with their LastModified timestamps
+            # Exclude files that contain 'invocationID' in their path
+            files = [(obj['Key'], obj['LastModified']) 
+                    for obj in response.get('Contents', []) 
+                    if obj['Key'].lower().endswith('.png') and 'invocationid' not in obj['Key'].lower()]
+            
+            # Sort by LastModified timestamp, most recent first
+            sorted_files = sorted(files, key=lambda x: x[1], reverse=True)
+            
+            # Return just the keys in sorted order
+            return [file[0] for file in sorted_files]
+        except Exception as e:
+            st.error(f"Error listing image: {str(e)}")
+            return None
 
     def get_image_from_s3(self, file_key):
         try:
@@ -208,27 +228,54 @@ class BedrockAgent:
         shutil.rmtree(self.temp_dir)
         self.temp_dir = tempfile.mkdtemp()
      
-    def get_s3_image(self, invocation_id):
-        try:
-            self.s3_client = Session().client("s3")
-            s3_key = f'graphs/invocationID/{invocation_id}/KMplot.png'
+    def get_s3_image(self, isKMplot: bool = False, invocation_id: str = None):
+        if isKMplot and invocation_id:
+            try:
+                self.s3_client = Session().client("s3")
+                s3_key = f'graphs/invocationID/{invocation_id}/KMplot.png'
 
-            response = self.s3_client.get_object(Bucket=self.s3_bucket_name, Key=s3_key)
-            image_content = response['Body'].read()
+                response = self.s3_client.get_object(Bucket=self.s3_bucket_name, Key=s3_key)
+                image_content = response['Body'].read()
 
-            # Save the image to a temporary file
-            temp_image_path = os.path.join(self.temp_dir, 'KMplot.png')
-            with open(temp_image_path, 'wb') as f:
-                f.write(image_content)
+                temp_image_path = os.path.join(self.temp_dir, 'KMplot.png')
+                with open(temp_image_path, 'wb') as f:
+                    f.write(image_content)
 
-            return {
-                'name': 'KMplot.png',
-                'type': 'image/png',
-                'path': temp_image_path
-            }
-        except self.s3_client.exceptions.NoSuchKey:
-            # Handle the case when no KM plot graphs are found
-            return {"error": "No KM plot graphs found for this invocation ID."}
-        except Exception as e:
-            # Handle other exceptions
-            return {"error": f"Error fetching image from S3: {str(e)}"}
+                return {
+                    'name': 'KMplot.png',
+                    'type': 'image/png',
+                    'path': temp_image_path
+                }
+            except self.s3_client.exceptions.NoSuchKey:
+                return {"error": "No KM plot graphs found for this invocation ID."}
+            except Exception as e:
+                return {"error": f"Error fetching KM plot from S3: {str(e)}"}
+        else:
+            try:
+                graph = self.list_graph_files()
+                
+                if not graph:  # If list_graph_files returns None or empty list
+                    return {"error": "No graph files found in the graphs directory."}
+                    
+                if len(graph) == 0:
+                    return {"error": "No graph files available."}
+                    
+                first_file = graph[0]
+                self.s3_client = Session().client("s3")
+                
+                response = self.s3_client.get_object(Bucket=self.s3_bucket_name, Key=first_file)
+                image_content = response['Body'].read()
+
+                filename = os.path.basename(first_file)
+                temp_image_path = os.path.join(self.temp_dir, filename)
+                
+                with open(temp_image_path, 'wb') as f:
+                    f.write(image_content)
+
+                return {
+                    'name': filename,
+                    'type': 'image/png',
+                    'path': temp_image_path
+                }
+            except Exception as e:
+                return {"error": f"Error fetching graph from S3: {str(e)}"}

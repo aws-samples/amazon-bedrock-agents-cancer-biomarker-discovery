@@ -66,6 +66,7 @@ with st.sidebar:
    
     invocation_id = 1
     fetch_image = st.button("Fetch Chart")
+    fetch_graph = st.button("Fetch Graphs")
      # Action List
     st.subheader("Available Actions")
     actions = bedrock.listActions()
@@ -101,7 +102,7 @@ questions = [
     "What is the survival status for patients who have undergone chemotherapy",
     "Can you search pubmed for evidence around the effects of biomarker use in oncology on clinical trial failure risk",
     "Can you search pubmed for FDA approved biomarkers for non small cell lung cancer",
-    "What is the best gene biomarker (lowest p value) with overall survival for patients that have undergone chemotherapy",
+    "What is the best gene biomarker (lowest p value) with overall survival for patients that have undergone chemotherapy, graph the top 5 biomarkers in a bar chart",
     "Show me a Kaplan Meier chart for biomarker with name 'gdf15' for chemotherapy patients by grouping expression values less than 10 and greater than 10",
     "According to literature evidence, what metagene cluster does gdf15 belong to",
     "According to literature evidence, what properties of the tumor are associated with metagene 19 activity and EGFR pathway",
@@ -201,14 +202,26 @@ if selected_file and load_image:
         st.error(f"Unable loading image: {str(e)}")
 
 elif fetch_image:
-    s3_image = bedrock.get_s3_image(invocation_id)
-    if s3_image:
+    s3_image = bedrock.get_s3_image(isKMplot=True, invocation_id=invocation_id) 
+    if s3_image and 'error' not in s3_image:  
         try:
             image_placeholder.image(s3_image['path'], caption=s3_image['name'], use_column_width=True)
         except Exception as e:
             st.error(f"Unable loading image: {str(e)}")
     else:
-        image_placeholder.error("Failed to fetch image from S3.")
+        error_msg = s3_image.get('error', "Failed to fetch image from S3.") if s3_image else "Failed to fetch image from S3."
+        image_placeholder.error(error_msg)
+
+elif fetch_graph:
+    s3_image = bedrock.get_s3_image(isKMplot=False)  
+    if s3_image and 'error' not in s3_image: 
+        try:
+            image_placeholder.image(s3_image['path'], caption=s3_image['name'], use_column_width=True)
+        except Exception as e:
+            st.error(f"Unable loading image: {str(e)}")
+    else:
+        error_msg = s3_image.get('error', "Failed to fetch image from S3.") if s3_image else "Failed to fetch image from S3."
+        image_placeholder.error(error_msg)
 
 
 # Input area
