@@ -98,7 +98,7 @@ Here is an example chain of thought sequence with the agent. 11 questions are li
 > [!NOTE]  
 > Full deployment takes approximately 10-15 minutes. Stack can also be launched in us-east-1 or us-west-2 by clicking launch stack below
 
-|   Region   | codepipeline.yaml |
+|   Region   | Infra_cfn.yaml |
 | ---------- | ----------------- |
 | us-east-1  | [![launch-stack](https://s3.amazonaws.com/cloudformation-examples/cloudformation-launch-stack.png)](https://console.aws.amazon.com/cloudformation/home?region=us-east-1#/stacks/new?stackName=biomakeragent&templateURL=https://aws-blogs-artifacts-public.s3.amazonaws.com/artifacts/ML-16901/Infra_cfn.yaml)|
 | us-west-2  | [![launch-stack](https://s3.amazonaws.com/cloudformation-examples/cloudformation-launch-stack.png)](https://console.aws.amazon.com/cloudformation/home?region=us-west-2#/stacks/new?stackName=biomakeragent&templateURL=https://aws-blogs-artifacts-public.s3.amazonaws.com/artifacts/ML-16901/Infra_cfn.yaml)|
