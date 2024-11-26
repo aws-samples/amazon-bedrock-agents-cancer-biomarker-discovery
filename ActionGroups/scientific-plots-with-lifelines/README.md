@@ -13,14 +13,14 @@ aws ecr create-repository --repository-name lifelines-lambda-sample
 
 1. Log into ECR
 
-aws ecr get-login-password | docker login --username AWS --password-stdin 942514891246.dkr.ecr.us-east-1.amazonaws.com
+aws ecr get-login-password | docker login --username AWS --password-stdin ACCOUNTID.dkr.ecr.us-east-1.amazonaws.com
 
 
 1. Tag the docker image 
 
-docker tag lifelines-python3.12-v2:latest 942514891246.dkr.ecr.us-east-1.amazonaws.com/lifelines-lambda-sample:latest 
+docker tag lifelines-python3.12-v2:latest ACCOUNTID.dkr.ecr.us-east-1.amazonaws.com/lifelines-lambda-sample:latest 
 
 
 1. Push image to ECR
 
-docker push 942514891246.dkr.ecr.us-east-1.amazonaws.com/lifelines-lambda-sample:latest 
+docker push ACCOUNTID.dkr.ecr.us-east-1.amazonaws.com/lifelines-lambda-sample:latest 
