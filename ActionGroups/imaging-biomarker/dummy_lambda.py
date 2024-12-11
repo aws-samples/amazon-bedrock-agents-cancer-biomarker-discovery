@@ -35,9 +35,17 @@ def lambda_handler(event, context):
                 # Parse the string representation of the list
                 if isinstance(param['value'], str): 
                     print("Parse the string representation of the list")
-                    subject_id = ast.literal_eval(param['value'])
-                    print(type(subject_id))
-                    #subject_id = json.loads(parsed_value)
+                    
+                    try:
+                        # Try parsing as JSON
+                        subject_id =  json.loads(param["value"])
+                    except json.JSONDecodeError:
+                        try:
+                            # Try parsing as Python literal
+                            subject_id = ast.literal_eval(param["value"])
+                        except (ValueError, SyntaxError):
+                            # Fall back to simple string splitting
+                            subject_id =  [id.strip() for id in param["value"].strip('[]').split(',')]
                 else:
                     subject_id = json.loads(param["value"])
         if subject_id:
@@ -81,7 +89,22 @@ def lambda_handler(event, context):
         s3_client = boto3.client('s3')
         for param in parameters:
             if param["name"] == "subject_id":
-                subject_id = json.loads(param["value"])
+                # Parse the string representation of the list
+                if isinstance(param['value'], str): 
+                    print("Parse the string representation of the list")
+                    
+                    try:
+                        # Try parsing as JSON
+                        subject_id =  json.loads(param["value"])
+                    except json.JSONDecodeError:
+                        try:
+                            # Try parsing as Python literal
+                            subject_id = ast.literal_eval(param["value"])
+                        except (ValueError, SyntaxError):
+                            # Fall back to simple string splitting
+                            subject_id =  [id.strip() for id in param["value"].strip('[]').split(',')]
+                else:
+                    subject_id = json.loads(param["value"])
                 for id in subject_id:
                     output_data_uri = f'{s3bucket}/nsclc_radiogenomics/'
                     bucket_name = bucketname
