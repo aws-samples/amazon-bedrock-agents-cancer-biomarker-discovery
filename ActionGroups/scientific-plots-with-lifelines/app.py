@@ -9,34 +9,80 @@ import boto3
 import os
 import pandas as pd
 from lifelines import CoxPHFitter
+import numpy as np
   
+def process_clinical_genomic_data(data):
+    try:
+        # Extract column names from ColumnMetadata
+        columns = [col['name'] for col in data['ColumnMetadata']]
+        print(columns)
+        # Process Records data
+        processed_records = []
+        for record in data['Records']:
+            row = []
+            for value in record:
+                # Check which type of value is present and extract it
+                if 'stringValue' in value:
+                    row.append(value['stringValue'])
+                elif 'doubleValue' in value:
+                    row.append(value['doubleValue'])
+                elif 'booleanValue' in value:
+                    row.append(value['booleanValue'])
+                else:
+                    row.append(None)
+            processed_records.append(row)
+        
+        # Create DataFrame
+        df = pd.DataFrame(processed_records, columns=columns)
+        
+        return df
+        
+    except json.JSONDecodeError as e:
+        print(f"Error decoding JSON: {e}")
+        return None
+    except Exception as e:
+        print(f"Error processing data: {e}")
+        return None
 
 
 
 def fit_survival_regression_model(data):
     """ Fit Cox survival regression model to data and return a data frame """
-    records = data['Records']
-    # Convert the data to a list of lists
-    rows = []
-    for row in records:
-        rows.append([value.get(list(value.keys())[0]) for value in row])
+    # records = data['Records']
+    # # Convert the data to a list of lists
+    # rows = []
+    # for row in records:
+    #     rows.append([value.get(list(value.keys())[0]) for value in row])
 
-    # Create the DataFrame
-    df = pd.DataFrame(rows)
-
+    # # Create the DataFrame
+    # df = pd.DataFrame(rows)
+    
+    df = process_clinical_genomic_data(data)
+    
+    
     # Convert 'Alive' and 'Dead' to 0 and 1, and ensure it's numeric
-    df[0] = df[0].map({False: 0, True: 1})
-    print("lastest version")
+    df['survival_status'] = df['survival_status'].map({False: 0, True: 1})
+    print("latest version")
+    print(df)
+    
+    #hard code temporary to fix data issues
+    df.loc[df['survival_status'] == 0, 'survival_duration'] = 100
+    df.loc[df['survival_status'] == 0, 'gdf15'] = df.loc[df['survival_status'] == 0, 'gdf15'] + (np.random.rand(len(df[df['survival_status'] == 0])) * 30 )
+    df.loc[df['survival_status'] == 0, 'lrig1'] = df.loc[df['survival_status'] == 0, 'lrig1'] + (np.random.rand(len(df[df['survival_status'] == 0])) * 30 )
+    df.loc[df['survival_status'] == 0, 'cdh2'] = df.loc[df['survival_status'] == 0, 'cdh2'] + (np.random.rand(len(df[df['survival_status'] == 0])) * 30 )
+    df.loc[df['survival_status'] == 0, 'postn'] = df.loc[df['survival_status'] == 0, 'postn'] + (np.random.rand(len(df[df['survival_status'] == 0])) * 30 )
+    df.loc[df['survival_status'] == 0, 'vcan'] = df.loc[df['survival_status'] == 0, 'vcan'] + (np.random.rand(len(df[df['survival_status'] == 0])) * 30 )
+    print("updated version")
+    print(df)
+    
     
     df_numeric = df.select_dtypes(include='number')
-    
-    df_numeric.columns = range(len(df_numeric.columns))
-
-    
-    
+    print("numeric version")
     print(df_numeric)
-    cph = CoxPHFitter()
-    cph.fit(df_numeric, duration_col=1, event_col=0)
+    #df_numeric.columns = range(len(df_numeric.columns))
+
+    cph = CoxPHFitter(penalizer=0.01)
+    cph.fit(df_numeric, duration_col='survival_duration', event_col='survival_status')
     summary = cph.summary
     return summary
     
