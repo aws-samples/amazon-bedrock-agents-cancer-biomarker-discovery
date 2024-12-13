@@ -427,7 +427,7 @@ with st.sidebar:
         st.success(f"Selected actions: {', '.join(selected_actions)}")
 
 # Main content
-st.title("Clinical Trial Agent")
+st.title("Biomarker Research Agent")
 
 col1, col2 = st.columns([6, 1])
 with col2:
