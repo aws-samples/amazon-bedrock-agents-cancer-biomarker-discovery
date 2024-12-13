@@ -1,4 +1,16 @@
 # Accelerate analysis and discovery of cancer biomarkers with Agents for Bedrock
+
+**Note: To deploy multi-agents associated with this branch please follow these steps
+
+
+
+
+
+1. Navigate to agents/ in this repository and copy the files in that folder to a SageMaker notebook
+2. Deploy the infra.yaml shown below in your AWS account
+3. Open up a SageMaker notebook and follow the instructions in deploy-agents/deploy-agents.ipynb
+4. Navigate to Bedrock Agents and ensure that all new agents are present
+
 ## Overview
 The success rate for Phase I oncology clinical trials is significantly low. According to a study published in Nature Reviews Drug Discovery, the overall success rate for oncology drugs from Phase I to approval is around 5%, indicating a high failure rate of approximately 95%. 
 
