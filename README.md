@@ -17,9 +17,11 @@ Step 1: Navigate to the agents/ folder in this repository and download the files
 
 Step 2: Click the 'Launch Stack' button located in the [Deployment](#deployment) section to deploy the AWS infrastructure needed to support the agents
 
-Step 3: Go to a SageMaker Studio JupyterLab environment in your AWS account and upload the agent/ files there, use the Python 3 (ipykernel)
+Step 3: When deploying this template make sure to change the 'GitBranch' parameter to the value 'multi-agent-collaboration' before clicking 'Submit'
 
-Step 4: Follow the step-by-step instructions shown in deploy_agents.ipynb to deploy agents
+Step 4: Go to a SageMaker Studio JupyterLab environment in your AWS account and upload the agent/ files there, use the Python 3 (ipykernel)
+
+Step 5: Follow the step-by-step instructions shown in deploy_agents.ipynb to deploy agents
 
 ## Overview
 The success rate for Phase I oncology clinical trials is significantly low. According to a study published in Nature Reviews Drug Discovery, the overall success rate for oncology drugs from Phase I to approval is around 5%, indicating a high failure rate of approximately 95%. 
