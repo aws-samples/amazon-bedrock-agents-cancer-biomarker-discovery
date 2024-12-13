@@ -14,11 +14,13 @@ s3_bucket = os.environ['S3_BUCKET']
 
 def bar_chart(title, x_values, y_values, x_label, y_label):
     
-    x_values_parsed= ast.literal_eval(x_values)
-    y_values_parsed= ast.literal_eval(y_values)
-  
+    #x_values_parsed= ast.literal_eval(x_values)
+    #y_values_parsed= ast.literal_eval(y_values)
+    print('bar chart')
+    print(x_values)
+    print(y_values)
     fig, ax = plt.subplots(figsize=(10, 6))  
-    ax.bar(x_values_parsed, y_values_parsed, color='blue')
+    ax.bar(x_values, y_values, color='blue')
     ax.set_title(title)
     ax.set_xlabel(x_label)
     ax.set_ylabel(y_label)
@@ -46,12 +48,43 @@ def handler(event, context):
     try:
         if function == "bar_chart":
             for param in parameters:
+                print(param)
                 if param["name"] == "title":
                     title = param["value"]
                 if param["name"] == "x_values":
-                    x_values = param["value"]
+                    #x_values = param["value"]
+                # Parse the string representation of the list
+                    if isinstance(param['value'], str): 
+                        print("Parse the string representation of the list")
+                        print(param["value"])
+                    
+                        try:
+                            print("Try parsing as JSON")
+                            x_values = json.loads(param["value"])
+                        except json.JSONDecodeError:
+                            try:
+                                print("Try parsing as Python literal")
+                                # First clean up the string if it ends with }}"
+                                cleaned_value = param["value"].rstrip('}"')
+                                x_values = ast.literal_eval(cleaned_value)
+                            except (ValueError, SyntaxError):
+                                print("Fall back to string splitting and cleaning")
+                                cleaned = param["value"].strip('[]')
+                                # Split by comma and strip whitespace from each item
+                                x_values = [item.strip() for item in cleaned.split(',')]
+                                #cleaned_value = param["value"].strip('[]{}"\' ')
+                                #x_values = [id.strip(' "\'') for id in cleaned_value.split(',')]
+
+                        # Add validation to ensure we got a list
+                        if not isinstance(x_values, list):
+                            x_values = [x_values]
+
+
+
+                    else:
+                        x_values = json.loads(param["value"])
                 if param["name"] == "y_values":
-                    y_values = param["value"]
+                    y_values = ast.literal_eval(param["value"])
                 if param["name"] == "x_label":
                     x_label = param["value"]
                 if param["name"] == "y_label":
@@ -66,6 +99,8 @@ def handler(event, context):
             }
         }
     except Exception as e:
+        
+        print(e)
         responseBody = {
             "TEXT": {
                 "body": "An error occurred: {}".format(str(e))

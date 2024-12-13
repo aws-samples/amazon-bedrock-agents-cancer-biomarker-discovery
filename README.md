@@ -1,4 +1,26 @@
 # Accelerate analysis and discovery of cancer biomarkers with Agents for Bedrock
+
+**Note: Biomarker Agents can now be deployed with Bedrock multi-agent collaboration in your AWS account!
+
+Read more about these agents here:
+https://aws.amazon.com/blogs/machine-learning/accelerate-analysis-and-discovery-of-cancer-biomarkers-with-amazon-bedrock-agents/
+
+Multi-Agents Update:
+-  A Jupyter notebook located in this repository has been developed to walk users through creating these agents
+-  Users deploy AWS CloudFormation infrastructure to their AWS account as before
+- This agent deployment notebook is meant to be run in a SageMaker Notebook environment
+-  Users follow the instructions within the notebook step-by-step to interactively create agents
+
+Now follow the step-by-step instructions below to deploy these Bedrock Agents
+
+Step 1: Navigate to the agents/ folder in this repository and download the files located there
+
+Step 2: Click the 'Launch Stack' button located in the [Deployment](#deployment) section to deploy the AWS infrastructure needed to support the agents
+
+Step 3: Create a SageMaker Notebook in your AWS account and upload the agent/ files there
+
+Step 4: Follow the step-by-step instructions shown in deploy_agents.ipynb to deploy agents
+
 ## Overview
 The success rate for Phase I oncology clinical trials is significantly low. According to a study published in Nature Reviews Drug Discovery, the overall success rate for oncology drugs from Phase I to approval is around 5%, indicating a high failure rate of approximately 95%. 
 
