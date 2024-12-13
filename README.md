@@ -1,6 +1,6 @@
 # Accelerate analysis and discovery of cancer biomarkers with Agents for Bedrock
 
-*Note: Biomarker Bedrock Agents can now be deployed in your AWS account!
+*Note: Biomarker Agents can now be deployed with Bedrock multi-agent collaboration in your AWS account!
 
 Navigate to the [multi-agent-collaboration branch](https://github.com/aws-samples/amazon-bedrock-agents-cancer-biomarker-discovery/tree/multi-agent-collaboration) of this repository and follow the instructions there to deploy the agents
 
