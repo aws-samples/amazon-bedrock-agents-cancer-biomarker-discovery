@@ -1,4 +1,11 @@
 # Accelerate analysis and discovery of cancer biomarkers with Agents for Bedrock
+
+*Note: Biomarker Bedrock Agents can now be deployed in your AWS account!
+
+Navigate to the [multi-agent-collaboration branch](https://github.com/aws-samples/amazon-bedrock-agents-cancer-biomarker-discovery/tree/multi-agent-collaboration) of this repository and follow the instructions there to deploy the agents
+
+Read more about these agents in this article: https://aws.amazon.com/blogs/machine-learning/accelerate-analysis-and-discovery-of-cancer-biomarkers-with-amazon-bedrock-agents/
+
 ## Overview
 The success rate for Phase I oncology clinical trials is significantly low. According to a study published in Nature Reviews Drug Discovery, the overall success rate for oncology drugs from Phase I to approval is around 5%, indicating a high failure rate of approximately 95%. 
 
