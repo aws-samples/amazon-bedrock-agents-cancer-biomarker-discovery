@@ -8,7 +8,7 @@ https://aws.amazon.com/blogs/machine-learning/accelerate-analysis-and-discovery-
 Multi-Agents Update:
 -  A Jupyter notebook located in this repository has been developed to walk users through creating these agents
 -  Users deploy AWS CloudFormation infrastructure to their AWS account as before
-- This agent deployment notebook is meant to be run in a SageMaker Notebook environment
+- This agent deployment notebook is meant to be run in a SageMaker Studio environment
 -  Users follow the instructions within the notebook step-by-step to interactively create agents
 
 Now follow the step-by-step instructions below to deploy these Bedrock Agents
@@ -17,7 +17,7 @@ Step 1: Navigate to the agents/ folder in this repository and download the files
 
 Step 2: Click the 'Launch Stack' button located in the [Deployment](#deployment) section to deploy the AWS infrastructure needed to support the agents
 
-Step 3: Create a SageMaker Notebook in your AWS account and upload the agent/ files there
+Step 3: Go to a SageMaker Studio JupyterLab environment in your AWS account and upload the agent/ files there, use the Python 3 (ipykernel)
 
 Step 4: Follow the step-by-step instructions shown in deploy_agents.ipynb to deploy agents
 
