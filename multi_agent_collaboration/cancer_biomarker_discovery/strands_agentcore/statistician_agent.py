@@ -15,7 +15,7 @@ account_id = sts_client.get_caller_identity()['Account']
 region = boto3.Session().region_name
 
 # Define Bedrock model id
-MODEL_ID = "global.anthropic.claude-sonnet-4-20250514-v1:0"
+MODEL_ID = "global.anthropic.claude-sonnet-4-6"
 
 # Retrieve bucket information
 s3_bucket = find_s3_bucket_name_by_suffix('-agent-build-bucket')
